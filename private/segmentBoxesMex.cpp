@@ -46,7 +46,8 @@ public:
   float _maxAspectRatio, _minBoxArea, _gamma, _kappa;
 
   // main external routine (set parameters first)
-  void generate( Boxes &boxes, arrayf &E, arrayf &O, arrayf &V );
+//  void generate( Boxes &boxes, arrayf &E, arrayf &O, arrayf &V ); 
+   void createSegments( arrayf &I, arrayi &_segs );
 
 private:
   // edge segment information (see clusterEdges)
@@ -73,6 +74,7 @@ private:
   void scoreBox( Box &box );
   void refineBox( Box &box );
   void drawBox( Box &box, arrayf &E, arrayf &V );
+  void generate( Boxes &boxes, arrayf &E, arrayf &O, arrayf &V );
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,6 +82,54 @@ private:
 void EdgeBoxGenerator::generate( Boxes &boxes, arrayf &E, arrayf &O, arrayf &V )
 {
   clusterEdges(E,O,V); prepDataStructs(E); scoreAllBoxes(boxes);
+}
+
+void EdgeBoxGenerator::createSegments( arrayf &I, arrayi &_segs )
+{
+    int c, r, cd, rd, c0, r0; h=I._h; w=I._w;
+    vectori _R, _C;
+    
+    _segs.init(h,w); _segCnt=1;
+    for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
+        if( c==0 || r==0 || c==w-1 || r==h-1 )
+      _segs.val(c,r)=-1; else _segs.val(c,r)=0;
+    }
+
+//     for( c=0; c<w; c++ ){
+//         for( r=0; r<h; r++ ){
+//             mexPrintf("%d ",_segs.val(c,r));
+//         }
+//         mexPrintf("\n");
+//     }
+//     
+//      _segs.init(h,w);
+//      for( c=0; c<w; c++ ){
+//         for( r=0; r<h; r++ ){
+//             _segs.val(c,r) = I.val(c,r);
+//             mexPrintf("%f ",I.val(c,r));
+//         }
+//         mexPrintf("\n");
+//     } 
+   
+   for( c=0; c<w; c++) for( r=0; r<h; r++) {
+        if (_segs.val(c,r)!=0) continue;
+        _segs.val(c,r) = _segCnt;
+        _R.push_back(r); _C.push_back(c);
+        while (_R.size()>0){
+            r0 = _R.back(); 
+            c0 = _C.back();
+            _R.pop_back();
+            _C.pop_back();
+            for( cd=-1; cd<=1; cd++ ) for( rd=-1; rd<=1; rd++ ) {
+                if (_segs.val(c0+cd,r0+rd)!=0) continue;
+                if (I.val(c0+cd,r0+rd) == I.val(c0,r0)){
+                    _segs.val(c0+cd,r0+rd) = _segCnt;
+                    _R.push_back(r0+rd); _C.push_back(c0+cd);
+                }
+            }
+        }   
+        _segCnt++;
+    }
 }
 
 void EdgeBoxGenerator::clusterEdges( arrayf &E, arrayf &O, arrayf &V )
@@ -424,14 +474,12 @@ void boxesNms( Boxes &boxes, float thr, int maxBoxes )
 void mexFunction( int nl, mxArray *pl[], int nr, const mxArray *pr[] )
 {
   // check and get inputs
-  if(nr != 13) mexErrMsgTxt("Thirteen inputs required.");
+  if(nr != 12) mexErrMsgTxt("Thirteen inputs required.");
   if(nl > 2) mexErrMsgTxt("At most two outputs expected.");
-  if(mxGetClassID(pr[0])!=mxSINGLE_CLASS) mexErrMsgTxt("E must be a float*");
-  if(mxGetClassID(pr[1])!=mxSINGLE_CLASS) mexErrMsgTxt("O must be a float*");
-  arrayf E; E._x = (float*) mxGetData(pr[0]);
-  arrayf O; O._x = (float*) mxGetData(pr[1]);
-  int h = (int) mxGetM(pr[0]); O._h=E._h=h;
-  int w = (int) mxGetN(pr[0]); O._w=E._w=w;
+  if(mxGetClassID(pr[0])!=mxSINGLE_CLASS) mexErrMsgTxt("I must be a float*");
+  arrayf I; I._x = (float*) mxGetData(pr[0]);
+  int h = (int) mxGetM(pr[0]); I._h=h;
+  int w = (int) mxGetN(pr[0]); I._w=w;
 
   // optionally create memory for visualization
   arrayf V; if( nl>1 ) {
@@ -442,28 +490,45 @@ void mexFunction( int nl, mxArray *pl[], int nr, const mxArray *pr[] )
 
   // setup and run EdgeBoxGenerator
   EdgeBoxGenerator edgeBoxGen; Boxes boxes;
-  edgeBoxGen._alpha = float(mxGetScalar(pr[2]));
-  edgeBoxGen._beta = float(mxGetScalar(pr[3]));
-  edgeBoxGen._minScore = float(mxGetScalar(pr[4]));
-  edgeBoxGen._maxBoxes = int(mxGetScalar(pr[5]));
-  edgeBoxGen._edgeMinMag = float(mxGetScalar(pr[6]));
-  edgeBoxGen._edgeMergeThr = float(mxGetScalar(pr[7]));
-  edgeBoxGen._clusterMinMag = float(mxGetScalar(pr[8]));
-  edgeBoxGen._maxAspectRatio = float(mxGetScalar(pr[9]));
-  edgeBoxGen._minBoxArea = float(mxGetScalar(pr[10]));
-  edgeBoxGen._gamma = float(mxGetScalar(pr[11]));
-  edgeBoxGen._kappa = float(mxGetScalar(pr[12]));
-  edgeBoxGen.generate( boxes, E, O, V );
+  
+  arrayi _segs;
+  
+  edgeBoxGen._alpha = float(mxGetScalar(pr[1]));
+  edgeBoxGen._beta = float(mxGetScalar(pr[2]));
+  edgeBoxGen._minScore = float(mxGetScalar(pr[3]));
+  edgeBoxGen._maxBoxes = int(mxGetScalar(pr[4]));
+  edgeBoxGen._edgeMinMag = float(mxGetScalar(pr[5]));
+  edgeBoxGen._edgeMergeThr = float(mxGetScalar(pr[6]));
+  edgeBoxGen._clusterMinMag = float(mxGetScalar(pr[7]));
+  edgeBoxGen._maxAspectRatio = float(mxGetScalar(pr[8]));
+  edgeBoxGen._minBoxArea = float(mxGetScalar(pr[9]));
+  edgeBoxGen._gamma = float(mxGetScalar(pr[10]));
+  edgeBoxGen._kappa = float(mxGetScalar(pr[11]));
+//   edgeBoxGen.generate( boxes, E, O, V );
+  
+  edgeBoxGen.createSegments( I, _segs );
+   
+  pl[0] = mxCreateNumericMatrix(_segs._h,_segs._w,mxSINGLE_CLASS,mxREAL);
+  float *bbs = (float*) mxGetData(pl[0]);
+  int n = 0;
+ // prwta ta colons kai meta ta rows (sumvasi Dollar)
+          
+  for (int i=0; i<_segs._w; i++){
+      for (int j=0; j<_segs._h; j++){
+         bbs[n] = (float) _segs.val(i,j);
+         n++;
+      }
+  }
 
   // create output bbs and output to Matlab
-  int n = (int) boxes.size();
-  pl[0] = mxCreateNumericMatrix(n,5,mxSINGLE_CLASS,mxREAL);
-  float *bbs = (float*) mxGetData(pl[0]);
-  for(int i=0; i<n; i++) {
-    bbs[ i + 0*n ] = (float) boxes[i].c+1;
-    bbs[ i + 1*n ] = (float) boxes[i].r+1;
-    bbs[ i + 2*n ] = (float) boxes[i].w;
-    bbs[ i + 3*n ] = (float) boxes[i].h;
-    bbs[ i + 4*n ] = boxes[i].s;
-  }
+//   int n = (int) boxes.size();
+//   pl[0] = mxCreateNumericMatrix(n,5,mxSINGLE_CLASS,mxREAL);
+//   float *bbs = (float*) mxGetData(pl[0]);
+//   for(int i=0; i<n; i++) {
+//     bbs[ i + 0*n ] = (float) boxes[i].c+1;
+//     bbs[ i + 1*n ] = (float) boxes[i].r+1;
+//     bbs[ i + 2*n ] = (float) boxes[i].w;
+//     bbs[ i + 3*n ] = (float) boxes[i].h;
+//     bbs[ i + 4*n ] = boxes[i].s;
+//  }
 }
