@@ -79,10 +79,7 @@ end
 
 function bbs = segmentBoxesImg( I, o )
 % Generate Segment Boxes object proposals in single image.
-if(all(ischar(I))), I=imread(I); end
-[E,segs]=segmentDetect(I);
-if(0), E=gradientMag(convTri(single(I),4)); E=E/max(E(:)); end
-bbs=segmentBoxesMex(E,o.alpha,o.beta,o.minScore,o.maxBoxes,...
+bbs=segmentBoxesMex(I,o.alpha,o.beta,o.minScore,o.maxBoxes,...
   o.segmentMinMag,o.segmentMergeThr,o.clusterMinMag,...
   o.maxAspectRatio,o.minBoxArea,o.gamma,o.kappa);
 end

@@ -46,8 +46,7 @@ public:
   float _maxAspectRatio, _minBoxArea, _gamma, _kappa;
 
   // main external routine (set parameters first)
-//  void generate( Boxes &boxes, arrayf &E, arrayf &O, arrayf &V ); 
-   void createSegments( arrayf &I, arrayi &_segs );
+  void generate( Boxes &boxes, arrayf &I );
 
 private:
   // edge segment information (see clusterEdges)
@@ -68,52 +67,52 @@ private:
   arrayf _sWts; arrayi _sDone, _sMap, _sIds; int _sId;
 
   // helper routines
-  void clusterEdges( arrayf &E, arrayf &O, arrayf &V );
-  void prepDataStructs( arrayf &E );
+  void prepDataStructs( arrayf &I );
   void scoreAllBoxes( Boxes &boxes );
   void scoreBox( Box &box );
   void refineBox( Box &box );
-  void drawBox( Box &box, arrayf &E, arrayf &V );
-  void generate( Boxes &boxes, arrayf &E, arrayf &O, arrayf &V );
+  void drawBox( Box &box, arrayf &I, arrayf &V ); 
+  void createSegments( arrayf &I );
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void EdgeBoxGenerator::generate( Boxes &boxes, arrayf &E, arrayf &O, arrayf &V )
+void EdgeBoxGenerator::generate( Boxes &boxes, arrayf &I )
 {
-  clusterEdges(E,O,V); prepDataStructs(E); scoreAllBoxes(boxes);
+  createSegments(I);prepDataStructs(I); scoreAllBoxes(boxes);
 }
 
-void EdgeBoxGenerator::createSegments( arrayf &I, arrayi &_segs )
+void EdgeBoxGenerator::createSegments( arrayf &I )
 {
-    int c, r, cd, rd, c0, r0; h=I._h; w=I._w;
+    int c, r, cd, rd, c0, r0, i, j; h=I._h; w=I._w;
     vectori _R, _C;
     
-    _segs.init(h,w); _segCnt=1;
+    _segIds.init(h,w); _segCnt=1;
     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
         if( c==0 || r==0 || c==w-1 || r==h-1 )
-      _segs.val(c,r)=-1; else _segs.val(c,r)=0;
+      _segIds.val(c,r)=-1; else _segIds.val(c,r)=0;
     }
 
-//     for( c=0; c<w; c++ ){
-//         for( r=0; r<h; r++ ){
-//             mexPrintf("%d ",_segs.val(c,r));
+//     for( r=0; r<h; r++ ){
+//         for( c=0; c<w; c++ ){
+//         
+//             mexPrintf("%d ",_segIds.val(c,r));
 //         }
 //         mexPrintf("\n");
 //     }
 //     
-//      _segs.init(h,w);
-//      for( c=0; c<w; c++ ){
-//         for( r=0; r<h; r++ ){
-//             _segs.val(c,r) = I.val(c,r);
+//      _segIds.init(h,w);
+//      for( r=0; r<h; r++ ){
+//          for( c=0; c<w; c++ ){
+//             _segIds.val(c,r) = I.val(c,r);
 //             mexPrintf("%f ",I.val(c,r));
 //         }
 //         mexPrintf("\n");
 //     } 
    
    for( c=0; c<w; c++) for( r=0; r<h; r++) {
-        if (_segs.val(c,r)!=0) continue;
-        _segs.val(c,r) = _segCnt;
+        if (_segIds.val(c,r)!=0) continue;
+        _segIds.val(c,r) = _segCnt;
         _R.push_back(r); _C.push_back(c);
         while (_R.size()>0){
             r0 = _R.back(); 
@@ -121,126 +120,29 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayi &_segs )
             _R.pop_back();
             _C.pop_back();
             for( cd=-1; cd<=1; cd++ ) for( rd=-1; rd<=1; rd++ ) {
-                if (_segs.val(c0+cd,r0+rd)!=0) continue;
+                if (_segIds.val(c0+cd,r0+rd)!=0) continue;
                 if (I.val(c0+cd,r0+rd) == I.val(c0,r0)){
-                    _segs.val(c0+cd,r0+rd) = _segCnt;
+                    _segIds.val(c0+cd,r0+rd) = _segCnt;
                     _R.push_back(r0+rd); _C.push_back(c0+cd);
                 }
             }
         }   
         _segCnt++;
     }
+    
+    // compute _segMag
+    _segMag.resize(_segCnt,0);
+    for( c=1; c<w-1; c++ ) for( r=1; r<h-1; r++ )
+        if( (j=_segIds.val(c,r))>0 ) _segMag[j]+=1;
+    
+    // compute _segC and _segR
+    _segC.resize(_segCnt); _segR.resize(_segCnt);
+    for( c=1; c<w-1; c++ ) for( r=1; r<h-1; r++ )
+        if( (j=_segIds.val(c,r))>0 ) { _segC[j]=c; _segR[j]=r; }
+
 }
 
-void EdgeBoxGenerator::clusterEdges( arrayf &E, arrayf &O, arrayf &V )
-{
-  int c, r, cd, rd, i, j; h=E._h; w=E._w;
-
-  // greedily merge connected edge pixels into clusters (create _segIds)
-  _segIds.init(h,w); _segCnt=1;
-  for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
-    if( c==0 || r==0 || c==w-1 || r==h-1 || E.val(c,r)<=_edgeMinMag )
-      _segIds.val(c,r)=-1; else _segIds.val(c,r)=0;
-  }
-  for( c=1; c<w-1; c++ ) for( r=1; r<h-1; r++ ) {
-    if(_segIds.val(c,r)!=0) continue;
-    float sumv=0; int c0=c, r0=r; vectorf vs; vectori cs, rs;
-    while( sumv < _edgeMergeThr ) {
-      _segIds.val(c0,r0)=_segCnt;
-      float o0 = O.val(c0,r0), o1, v; bool found;
-      for( cd=-1; cd<=1; cd++ ) for( rd=-1; rd<=1; rd++ ) {
-        if( _segIds.val(c0+cd,r0+rd)!=0 ) continue; found=false;
-        for( i=0; i<cs.size(); i++ )
-          if( cs[i]==c0+cd && rs[i]==r0+rd ) { found=true; break; }
-          if( found ) continue; o1=O.val(c0+cd,r0+rd);
-          v=fabs(o1-o0)/PI; if(v>.5) v=1-v;
-          vs.push_back(v); cs.push_back(c0+cd); rs.push_back(r0+rd);
-      }
-      float minv=1000; j=0;
-      for( i=0; i<vs.size(); i++ ) if( vs[i]<minv ) {
-        minv=vs[i]; c0=cs[i]; r0=rs[i]; j=i;
-      }
-      sumv+=minv; if(minv<1000) vs[j]=1000;
-    }
-    _segCnt++;
-  }
-
-  // merge or remove small segments
-  _segMag.resize(_segCnt,0);
-  for( c=1; c<w-1; c++ ) for( r=1; r<h-1; r++ )
-    if( (j=_segIds.val(c,r))>0 ) _segMag[j]+=E.val(c,r);
-  for( c=1; c<w-1; c++ ) for( r=1; r<h-1; r++ )
-    if( (j=_segIds.val(c,r))>0 && _segMag[j]<=_clusterMinMag)
-      _segIds.val(c,r)=0;
-  i=1; while(i>0) {
-    i=0; for( c=1; c<w-1; c++ ) for( r=1; r<h-1; r++ ) {
-      if( _segIds.val(c,r)!=0 ) continue;
-      float o0=O.val(c,r), o1, v, minv=1000; j=0;
-      for( cd=-1; cd<=1; cd++ ) for( rd=-1; rd<=1; rd++ ) {
-        if( _segIds.val(c+cd,r+rd)<=0 ) continue; o1=O.val(c+cd,r+rd);
-        v=fabs(o1-o0)/PI; if(v>.5) v=1-v;
-        if( v<minv ) { minv=v; j=_segIds.val(c+cd,r+rd); }
-      }
-      _segIds.val(c,r)=j; if(j>0) i++;
-    }
-  }
-
-  // compactify representation
-  _segMag.assign(_segCnt,0); vectori map(_segCnt,0); _segCnt=1;
-  for( c=1; c<w-1; c++ ) for( r=1; r<h-1; r++ )
-    if( (j=_segIds.val(c,r))>0 ) _segMag[j]+=E.val(c,r);
-  for( i=0; i<_segMag.size(); i++ ) if( _segMag[i]>0 ) map[i]=_segCnt++;
-  for( c=1; c<w-1; c++ ) for( r=1; r<h-1; r++ )
-    if( (j=_segIds.val(c,r))>0 ) _segIds.val(c,r)=map[j];
-
-  // compute positional means and recompute _segMag
-  _segMag.assign(_segCnt,0); vectorf meanX(_segCnt,0), meanY(_segCnt,0);
-  vectorf meanOx(_segCnt,0), meanOy(_segCnt,0), meanO(_segCnt,0);
-  for( c=1; c<w-1; c++ ) for( r=1; r<h-1; r++ ) {
-    j=_segIds.val(c,r); if(j<=0) continue;
-    float m=E.val(c,r), o=O.val(c,r); _segMag[j]+=m;
-    meanOx[j]+=m*cos(2*o); meanOy[j]+=m*sin(2*o);
-    meanX[j]+=m*c; meanY[j]+=m*r;
-  }
-  for( i=0; i<_segCnt; i++ ) if( _segMag[i]>0 ) {
-    float m=_segMag[i]; meanX[i]/=m; meanY[i]/=m;
-    meanO[i]=atan2(meanOy[i]/m,meanOx[i]/m)/2;
-  }
-
-  // compute segment affinities
-  _segAff.resize(_segCnt); _segAffIdx.resize(_segCnt);
-  for(i=0; i<_segCnt; i++) _segAff[i].resize(0);
-  for(i=0; i<_segCnt; i++) _segAffIdx[i].resize(0);
-  const int rad = 2;
-  for( c=rad; c<w-rad; c++ ) for( r=rad; r<h-rad; r++ ) {
-    int s0=_segIds.val(c,r); if( s0<=0 ) continue;
-    for( cd=-rad; cd<=rad; cd++ ) for( rd=-rad; rd<=rad; rd++ ) {
-      int s1=_segIds.val(c+cd,r+rd); if(s1<=s0) continue;
-      bool found = false; for(i=0;i<_segAffIdx[s0].size();i++)
-        if(_segAffIdx[s0][i] == s1) { found=true; break; }
-      if( found ) continue;
-      float o=atan2(meanY[s0]-meanY[s1],meanX[s0]-meanX[s1])+PI/2;
-      float a=fabs(cos(meanO[s0]-o)*cos(meanO[s1]-o)); a=pow(a,_gamma);
-      _segAff[s0].push_back(a); _segAffIdx[s0].push_back(s1);
-      _segAff[s1].push_back(a); _segAffIdx[s1].push_back(s0);
-    }
-  }
-
-  // compute _segC and _segR
-  _segC.resize(_segCnt); _segR.resize(_segCnt);
-  for( c=1; c<w-1; c++ ) for( r=1; r<h-1; r++ )
-    if( (j=_segIds.val(c,r))>0 ) { _segC[j]=c; _segR[j]=r; }
-
-  // optionally create visualization (assume memory initialized is 3*w*h)
-  if( V._x ) for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
-    i=_segIds.val(c,r);
-    V.val(c+w*0,r) = i<=0 ? 1 : ((123*i + 128)%255)/255.0f;
-    V.val(c+w*1,r) = i<=0 ? 1 : ((7*i + 3)%255)/255.0f;
-    V.val(c+w*2,r) = i<=0 ? 1 : ((174*i + 80)%255)/255.0f;
-  }
-}
-
-void EdgeBoxGenerator::prepDataStructs( arrayf &E )
+void EdgeBoxGenerator::prepDataStructs( arrayf &I )
 {
   int c, r, i;
 
@@ -265,15 +167,33 @@ void EdgeBoxGenerator::prepDataStructs( arrayf &E )
       _segIImg.val(c+1,r) - _segIImg.val(c,r);
   }
 
-  // create _magIImg
+  // create _magIImg. To _megIImg periexei ton arithmo twn pixels pou einai mesa sto box
   _magIImg.init(h+1,w+1);
   for( c=1; c<w; c++ ) for( r=1; r<h; r++ ) {
-    float e = E.val(c,r) > _edgeMinMag ? E.val(c,r) : 0;
+    float e = 1; // prosthetoume 1 sto magIImg afou ola ta pixels exoun tin idia varutita
     _magIImg.val(c+1,r+1) = e + _magIImg.val(c,r+1) +
       _magIImg.val(c+1,r) - _magIImg.val(c,r);
   }
+  
+    //mexri edw swsta
+
+//   for( r=0; r<h; r++ ){
+//      for( c=0; c<w; c++ ){
+//             mexPrintf("%f ",I.val(c,r));
+//         }
+//         mexPrintf("\n");
+//     } 
+//   mexPrintf("\n");
+//    for( r=1; r<h+1; r++ ){
+//      for( c=1; c<w+1; c++ ){
+//             mexPrintf("%f ",_magIImg.val(c,r));
+//         }
+//         mexPrintf("\n");
+//     }
 
   // create remaining data structures
+  // den elegxei an pernaei to idio segment apo to orio. Logika einai
+  // afou dinei akoma mikroteri timi gia to score  
   _hIdxs.resize(h); _hIdxImg.init(h,w);
   for( r=0; r<h; r++ ) {
     int s=0, s1; _hIdxs[r].push_back(s);
@@ -311,9 +231,9 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   float v = _segIImg.val(c0,r0) + _segIImg.val(c1+1,r1+1)
     - _segIImg.val(c1+1,r0) - _segIImg.val(c0,r1+1);
   // subtract middle quarter of edges
-  r0m=r0+bh/2; r1m=r0m+bh; c0m=c0+bw/2; c1m=c0m+bw;
-  v -= _magIImg.val(c0m, r0m) + _magIImg.val(c1m+1,r1m+1)
-    - _magIImg.val(c1m+1,r0m) - _magIImg.val(c0m,r1m+1);
+//   r0m=r0+bh/2; r1m=r0m+bh; c0m=c0+bw/2; c1m=c0m+bw;
+//   v -= _magIImg.val(c0m, r0m) + _magIImg.val(c1m+1,r1m+1)
+//     - _magIImg.val(c1m+1,r0m) - _magIImg.val(c0m,r1m+1);
   // short circuit computation if impossible to score highly
   float norm = _scaleNorm[bw+bh]; box.s=v*norm;
   if( box.s<_minScore ) { box.s=0; return; }
@@ -335,19 +255,7 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   for( i=rs; i<=re; i++ ) if( (j=_vIdxs[c1][i])>0 && sDone[j]!=sId ) {
     sIds[n]=j; sWts[n]=1; sDone[j]=sId; sMap[j]=n++;
   }
-  // follow connected paths and set weights accordingly (w=1 means remove)
-  for( i=0; i<n; i++ ) {
-    float w=sWts[i]; j=sIds[i];
-    for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
-      q=_segAffIdx[j][k]; float wq=w*_segAff[j][k];
-      if( wq<.05f ) continue; // short circuit for efficiency
-      if( sDone[q]==sId ) {
-        if( wq>sWts[sMap[q]] ) { sWts[sMap[q]]=wq; i=min(i,sMap[q]-1); }
-      } else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
-        sIds[n]=q; sWts[n]=wq; sDone[q]=sId; sMap[q]=n++;
-      }
-    }
-  }
+ 
   // finally remove segments connected to boundaries
   for( i=0; i<n; i++ ) {
     k = sIds[i];
@@ -384,7 +292,7 @@ void EdgeBoxGenerator::refineBox( Box &box )
   }
 }
 
-void EdgeBoxGenerator::drawBox( Box &box, arrayf &E, arrayf &V )
+void EdgeBoxGenerator::drawBox( Box &box, arrayf &I, arrayf &V )
 {
   // score box and draw color coded edges (red=out, green=in)
   int i, c, r; float e, o; if( !V._x ) return;
@@ -394,7 +302,7 @@ void EdgeBoxGenerator::drawBox( Box &box, arrayf &E, arrayf &V )
   for( c=0; c<w; c++ ) for( r=0; r<h; r++ )
     V.val(c+w*0,r)=V.val(c+w*1,r)=V.val(c+w*2,r)=1;
   for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
-    i=_segIds.val(c,r); if(i<=0) continue; e = E.val(c,r);
+    i=_segIds.val(c,r); if(i<=0) continue; e = I.val(c,r);
     o = (_sDone._x[i]==sId) ? _sWts._x[_sMap._x[i]] :
       (_segC[i]>=c0 && _segC[i]<=c1 && _segR[i]>=r0 && _segR[i]<=r1 ) ? 0 : 1;
     V.val(c+w*0,r)=1-e+e*o; V.val(c+w*1,r)=1-e*o; V.val(c+w*2,r)=1-e;
@@ -491,8 +399,6 @@ void mexFunction( int nl, mxArray *pl[], int nr, const mxArray *pr[] )
   // setup and run EdgeBoxGenerator
   EdgeBoxGenerator edgeBoxGen; Boxes boxes;
   
-  arrayi _segs;
-  
   edgeBoxGen._alpha = float(mxGetScalar(pr[1]));
   edgeBoxGen._beta = float(mxGetScalar(pr[2]));
   edgeBoxGen._minScore = float(mxGetScalar(pr[3]));
@@ -504,31 +410,29 @@ void mexFunction( int nl, mxArray *pl[], int nr, const mxArray *pr[] )
   edgeBoxGen._minBoxArea = float(mxGetScalar(pr[9]));
   edgeBoxGen._gamma = float(mxGetScalar(pr[10]));
   edgeBoxGen._kappa = float(mxGetScalar(pr[11]));
-//   edgeBoxGen.generate( boxes, E, O, V );
-  
-  edgeBoxGen.createSegments( I, _segs );
+  edgeBoxGen.generate( boxes, I );
    
-  pl[0] = mxCreateNumericMatrix(_segs._h,_segs._w,mxSINGLE_CLASS,mxREAL);
-  float *bbs = (float*) mxGetData(pl[0]);
-  int n = 0;
- // prwta ta colons kai meta ta rows (sumvasi Dollar)
-          
-  for (int i=0; i<_segs._w; i++){
-      for (int j=0; j<_segs._h; j++){
-         bbs[n] = (float) _segs.val(i,j);
-         n++;
-      }
-  }
+//   pl[0] = mxCreateNumericMatrix(_segIds._h,_segIds._w,mxSINGLE_CLASS,mxREAL);
+//   float *bbs = (float*) mxGetData(pl[0]);
+//   int n = 0;
+//  // prwta ta colons kai meta ta rows (sumvasi Dollar)
+//           
+//   for (int i=0; i<_segIds._w; i++){
+//       for (int j=0; j<_segIds._h; j++){
+//          bbs[n] = (float) _segIds.val(i,j);
+//          n++;
+//       }
+//   }
 
   // create output bbs and output to Matlab
-//   int n = (int) boxes.size();
-//   pl[0] = mxCreateNumericMatrix(n,5,mxSINGLE_CLASS,mxREAL);
-//   float *bbs = (float*) mxGetData(pl[0]);
-//   for(int i=0; i<n; i++) {
-//     bbs[ i + 0*n ] = (float) boxes[i].c+1;
-//     bbs[ i + 1*n ] = (float) boxes[i].r+1;
-//     bbs[ i + 2*n ] = (float) boxes[i].w;
-//     bbs[ i + 3*n ] = (float) boxes[i].h;
-//     bbs[ i + 4*n ] = boxes[i].s;
-//  }
+  int n = (int) boxes.size();
+  pl[0] = mxCreateNumericMatrix(n,5,mxSINGLE_CLASS,mxREAL);
+  float *bbs = (float*) mxGetData(pl[0]);
+  for(int i=0; i<n; i++) {
+    bbs[ i + 0*n ] = (float) boxes[i].c+1;
+    bbs[ i + 1*n ] = (float) boxes[i].r+1;
+    bbs[ i + 2*n ] = (float) boxes[i].w;
+    bbs[ i + 3*n ] = (float) boxes[i].h;
+    bbs[ i + 4*n ] = boxes[i].s;
+ }
 }
