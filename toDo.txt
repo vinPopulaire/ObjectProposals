@@ -1,6 +1,0 @@
-create a .m file to read from the images and provide the E segment map
-
-san E pairnoume to color tou segment
-san orientation ti pairnoume?
-
-apo to paper me to segmentation pairnoume etoima ta segments dn xreiazetai to prwto kommati tou Dollar
