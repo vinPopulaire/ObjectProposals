@@ -1,4 +1,4 @@
-function bbs = segmentBoxes( I, varargin )
+function bbs = segmentBoxes( I,edges, ids, varargin )
 % Generate Edge Boxes object proposals in given image(s).
 %
 % Compute Edge Boxes object proposals as described in:
@@ -65,21 +65,42 @@ function bbs = segmentBoxes( I, varargin )
 % get default parameters (unimportant parameters are undocumented)
 dfs={'name','', 'alpha',.65, 'beta',.75, 'minScore',.01, 'maxBoxes',1e4,...
   'segmentMinMag',.1, 'segmentMergeThr',.5, 'clusterMinMag',.5, ...
-  'maxAspectRatio',3, 'minBoxArea',1000, 'gamma',2, 'kappa',1.5 };
+  'maxAspectRatio',3, 'minBoxArea',1000, 'gamma',2, 'kappa',1.0 };
 o=getPrmDflt(varargin,dfs,1); if(nargin==0), bbs=o; return; end
 
 % run detector possibly over multiple images and optionally save results
 f=o.name; if(~isempty(f) && exist(f,'file')), bbs=1; return; end
-if(~iscell(I)), bbs=segmentBoxesImg(I,o); else n=length(I);
-  bbs=cell(n,1); parfor i=1:n, bbs{i}=segmentBoxesImg(I{i},o); end; end
+if(~iscell(I)), 
+    bbs=segmentBoxesImg(I,edges,ids,o); 
+else n=length(I);
+  bbs=cell(n,1); 
+  parfor i=1:n, 
+      bbs{i}=segmentBoxesImg(I{i},edges{i},ids{i},o); 
+  end; 
+end
 d=fileparts(f); if(~isempty(d)&&~exist(d,'dir')), mkdir(d); end
 if(~isempty(f)), save(f,'bbs'); bbs=1; end
 
 end
 
-function bbs = segmentBoxesImg( I, o )
+function bbs = segmentBoxesImg( I, edges, ids, o )
+fin = fopen(I);
+if (strcmp(I,'peppers.txt'))
+    original = imread('peppers.png');
+else
+    original = imread(['C:\Users\Giorgos\Programming\ObjectProposals\boxes\VOCdevkit\VOC2007\JPEGImages\' ids '.jpg']);
+end
+[height,width,color] = size(original);
+I = fscanf(fin,'%d',[width,height]); %dn kserw giati i fscanf leitourgei etsi. Mallon giati fscanf populates A in column order
+I = I';
+I = single(I);
+
+fedges = fopen(edges);
+edges = fscanf(fedges,'%f %f %f', [3,inf]); %puts edges in colomns of three
+edges = edges'; %so that they are in rows
+edges = single(edges);
 % Generate Segment Boxes object proposals in single image.
-bbs=segmentBoxesMex(I,o.alpha,o.beta,o.minScore,o.maxBoxes,...
+bbs=segmentBoxesMex(I,edges,o.alpha,o.beta,o.minScore,o.maxBoxes,...
   o.segmentMinMag,o.segmentMergeThr,o.clusterMinMag,...
   o.maxAspectRatio,o.minBoxArea,o.gamma,o.kappa);
 end
