@@ -11,7 +11,8 @@ tic, bbs=segmentBoxes('peppers.txt','edges.txt','peppers',opts); toc % 'peppers'
 
 %% show evaluation results (using pre-defined or interactive boxes)
 gt=[122 248 92 65; 193 82 71 53; 410 237 101 81; 204 160 114 95; ...
-  9 185 86 90; 389 93 120 117; 253 103 107 57; 81 140 91 63];
+  9 185 86 90; 389 93 120 117; 253 103 107 57; 81 140 91 63; 77 112 107 63; 309 173 191 123];
+gt = bbs(1:20,1:4);
 if(0), gt='Please select an object box.'; disp(gt); figure(1); imshow(I);
   title(gt); [~,gt]=imRectRot('rotate',0); gt=gt.getPos(); end
 gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);

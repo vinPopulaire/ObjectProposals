@@ -65,7 +65,7 @@ function bbs = segmentBoxes( I,edges, ids, varargin )
 % get default parameters (unimportant parameters are undocumented)
 dfs={'name','', 'alpha',.65, 'beta',.75, 'minScore',.01, 'maxBoxes',1e4,...
   'segmentMinMag',.1, 'segmentMergeThr',.5, 'clusterMinMag',.5, ...
-  'maxAspectRatio',3, 'minBoxArea',1000, 'gamma',2, 'kappa',1.0 };
+  'maxAspectRatio',3, 'minBoxArea',1000, 'gamma',2, 'kappa',0.7 };
 o=getPrmDflt(varargin,dfs,1); if(nargin==0), bbs=o; return; end
 
 % run detector possibly over multiple images and optionally save results
@@ -85,7 +85,7 @@ end
 
 function bbs = segmentBoxesImg( I, edges, ids, o )
 fin = fopen(I);
-if (strcmp(I,'peppers.txt'))
+if (strcmp(I,'peppers.txt') || strcmp(I,'dokimastiko.txt'))
     original = imread('peppers.png');
 else
     original = imread(['C:\Users\Giorgos\Programming\ObjectProposals\boxes\VOCdevkit\VOC2007\JPEGImages\' ids '.jpg']);
