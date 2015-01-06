@@ -36,6 +36,11 @@ bool boxesCompare( const Box &a, const Box &b ) { return a.s<b.s; }
 float boxesOverlap( Box &a, Box &b );
 void boxesNms( Boxes &boxes, float thr, int maxBoxes );
 
+  arrayi _segIds;                   // segment ids (-1/0 means no segment)
+  vectorf _segMag;                  // segment edge magnitude sums
+  arrayf _segIImg;
+  arrayf E1;
+
 // main class for generating edge boxes
 class EdgeBoxGenerator
 {
@@ -52,14 +57,13 @@ private:
   // edge segment information (see clusterEdges)
   int h, w;                         // image dimensions
   int _segCnt;                      // total segment count
-  arrayi _segIds;                   // segment ids (-1/0 means no segment)
-  vectori _segMag;                  // segment edge magnitude sums
+  
   vectori _segR, _segC;             // segment lower-right pixel
   vector<vectorf> _segAff;          // segment affinities
   vector<vectori> _segAffIdx;       // segment neighbors
 
   // data structures for efficiency (see prepDataStructs)
-  arrayf _segIImg, _magIImg; arrayi _hIdxImg, _vIdxImg;
+  arrayf _magIImg; arrayi _hIdxImg, _vIdxImg;
   vector<vectori> _hIdxs, _vIdxs; vectorf _scaleNorm;
   float _scStep, _arStep, _rcStepRatio;
 
@@ -89,9 +93,10 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
     
     _segIds.init(h,w);
     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
-        if( c==0 || r==0 || c==w-1 || r==h-1 )
-            _segIds.val(c,r)=-1; 
-        else _segIds.val(c,r)=int(I.val(c,r));
+//         if( c==0 || r==0 || c==w-1 || r==h-1 )
+//             _segIds.val(c,r)=-1; 
+//         else _segIds.val(c,r)=int(I.val(c,r));
+        _segIds.val(c,r)=int(I.val(c,r));
         if (I.val(c,r) > _segCnt)
             _segCnt = int(I.val(c,r));
     }
@@ -144,19 +149,29 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
        
     
     // compute _segMag
+    vectori tempMag;
+    tempMag.resize(_segCnt,0);
     _segMag.resize(_segCnt,0);
-    for( c=1; c<w-1; c++ ) for( r=1; r<h-1; r++ ){
-        int j=_segIds.val(c,r);
-        _segMag[j]=0;
-    }
     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ){
-        if( (j=_segIds.val(c,r))>-1 ) _segMag[j]++;
+        int j=_segIds.val(c,r);
+        tempMag[j]=0;
     }
     
-//     for( c=0; c<w; c++ ) {
-//         for( r=0; r<h; r++ ) {
+    int segMagMax=0;
+    for( c=0; c<w; c++ ) for( r=0; r<h; r++ ){
+        if( (j=_segIds.val(c,r))>-1 ) tempMag[j]++;
+        
+        if (tempMag[j] > segMagMax) segMagMax = tempMag[j];
+    }
+    
+    for (int i=0; i<_segMag.size(); i++)
+//         _segMag[i] = (float) tempMag[i]/segMagMax;
+        _segMag[i] = (float) tempMag[i];
+    
+//     for( r=0; r<h; r++ ) {
+//         for( c=0; c<w; c++ ) {
 //             int kati=_segIds.val(c,r);
-//             mexPrintf("%d ",_segMag[kati]);
+//             mexPrintf("%f ",_segMag[kati]);
 //         }
 //         mexPrintf("\n");
 //     }
@@ -164,7 +179,7 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
     
     // compute _segC and _segR
     _segC.resize(_segCnt); _segR.resize(_segCnt);
-    for( c=1; c<w-1; c++ ) for( r=1; r<h-1; r++ )
+    for( c=0; c<w; c++ ) for( r=0; r<h; r++ )
         if( (j=_segIds.val(c,r))>-1 ) { _segC[j]=c; _segR[j]=r; }
 
 }
@@ -184,7 +199,7 @@ void EdgeBoxGenerator::prepDataStructs( arrayf &I )
     _scaleNorm[i]=pow(1.f/i,_kappa);
 
   // create _segIImg
-  arrayf E1; E1.init(h,w);
+  E1.init(h,w);
   for( i=0; i<_segCnt; i++ ) if( _segMag[i]>0 ) {
     E1.val(_segC[i],_segR[i]) = float(_segMag[i]);
   }
@@ -198,8 +213,8 @@ void EdgeBoxGenerator::prepDataStructs( arrayf &I )
   
 //   float _segIImgMax = 0;
   _segIImg.init(h+1,w+1);
-  for( c=1; c<w; c++ ) {
-      for( r=1; r<h; r++ ) {
+  for( c=0; c<w; c++ ) {
+      for( r=0; r<h; r++ ) {
          _segIImg.val(c+1,r+1) = E1.val(c,r) + _segIImg.val(c,r+1) +
          _segIImg.val(c+1,r) - _segIImg.val(c,r);
 //          if (_segIImg.val(c+1,r+1)>_segIImgMax) _segIImgMax = _segIImg.val(c+1,r+1);
@@ -222,7 +237,7 @@ void EdgeBoxGenerator::prepDataStructs( arrayf &I )
 
   // create _magIImg. To _megIImg periexei ton arithmo twn pixels pou einai mesa sto box
   _magIImg.init(h+1,w+1);
-  for( c=1; c<w; c++ ) for( r=1; r<h; r++ ) {
+  for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
     float e = 1; // prosthetoume 1 sto magIImg afou ola ta pixels exoun tin idia varutita
     _magIImg.val(c+1,r+1) = e + _magIImg.val(c,r+1) +
       _magIImg.val(c+1,r) - _magIImg.val(c,r);
@@ -281,20 +296,24 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   r1=clamp(box.r+box.h,0,h-1); r0=box.r=clamp(box.r,0,h-1);
   c1=clamp(box.c+box.w,0,w-1); c0=box.c=clamp(box.c,0,w-1);
   bh=box.h=r1-box.r; bh/=2; bw=box.w=c1-box.c; bw/=2;
-  float v = _segIImg.val(c0,r0) + _segIImg.val(c1+1,r1+1)
-    - _segIImg.val(c1+1,r0) - _segIImg.val(c0,r1+1);
+  float v = _segIImg.val(c0,r0) + _segIImg.val(c1,r1)
+    - _segIImg.val(c1,r0) - _segIImg.val(c0,r1);
   // subtract middle quarter of edges  
-  float norm = 1.f; box.s=v*norm;
-//   float norm = _scaleNorm[bw+bh]; box.s=v*norm;
-// //   mexPrintf("%f\n",norm);
-// //   float norm = 1; box.s=v*norm;
-// //   float norm = pow(1.f/(bw*bh),_kappa); box.s=v*norm;
-// //   r0m=r0+bh/2; r1m=r0m+bh; c0m=c0+bw/2; c1m=c0m+bw;
-// //   v -= _magIImg.val(c0m, r0m) + _magIImg.val(c1m+1,r1m+1)
-// //     - _magIImg.val(c1m+1,r0m) - _magIImg.val(c0m,r1m+1);
+//   float norm = 1.f; box.s=v*norm;
+  float norm = _scaleNorm[bw+bh]; box.s=v*norm;
+//   mexPrintf("%f\n",norm);
+//   float norm = 1; box.s=v*norm;
+//   float norm = pow(1.f/(bw*bh),_kappa); box.s=v*norm;
+//   r0m=r0+bh/2; r1m=r0m+bh; c0m=c0+bw/2; c1m=c0m+bw;
+//   v -= _magIImg.val(c0m, r0m) + _magIImg.val(c1m+1,r1m+1)
+//     - _magIImg.val(c1m+1,r0m) - _magIImg.val(c0m,r1m+1);
   // short circuit computation if impossible to score highly
-  if( box.s<_minScore ) { box.s=0; return; }
+//  if( box.s<_minScore ) { box.s=0; return; }
+  
   // find interesecting segments along four boundaries
+  
+  int sizeOfsWts=_segCnt+1; _sWts.init(sizeOfsWts,1);
+  
   int cs, ce, rs, re, n=0;
   cs=_hIdxImg.val(c0,r0); ce=_hIdxImg.val(c1,r0); // top
   for( i=cs; i<=ce; i++ ) if( (j=_hIdxs[r0][i])>0 && sDone[j]!=sId ) {
@@ -312,32 +331,75 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   for( i=rs; i<=re; i++ ) if( (j=_vIdxs[c1][i])>0 && sDone[j]!=sId ) {
     sIds[n]=j; sWts[n]=1; sDone[j]=sId; sMap[j]=n++;
   }
-//   
-//   // follow connected paths and set weights accordingly (w=1 means remove)
-// //   for( i=0; i<n; i++ ) {
-// //     float w=sWts[i]; j=sIds[i];
-// //     for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
-// //       q=_segAffIdx[j][k]; 
-// //       if ( sWts[sMap[q]]<1 ) { // check only neighboors not intersecting with the boundaries
-// //           float wq=w*((1-_segAff[j][k])); // because big segAff means big difference
-// //           if( wq<.05f ) continue; // short circuit for efficiency
-// //           if( sDone[q]==sId ) {
-// //             if( wq>sWts[sMap[q]] ) { sWts[sMap[q]]=wq; i=min(i,sMap[q]-1); }    //?????
-// //           } else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
-// //             sIds[n]=q; sWts[n]=wq; sDone[q]=sId; sMap[q]=n++;
-// //           }
-// //       }
-// //     }
-// //   }
+  
+  vector<int> segmentsInside;
+  segmentsInside.clear();
+  for (int c=c0; c<c1; c++) for (int r=r0; r<r1; r++){
+      int found = 0;
+      for (int i=0; i<segmentsInside.size(); i++){
+          if (segmentsInside[i]==_segIds.val(c,r)) {
+              found = 1;
+              break;
+          }   
+      }
+      if (found == 0){
+          segmentsInside.push_back(_segIds.val(c,r));
+      }
+  }
+  
+  
+  // remove part of the segments inside according to their affinities
+  for (int c=c0; c<c1; c++) for (int r=r0; r<r1; r++){
+      if (E1.val(c,r)>0){
+          int current = _segIds.val(c,r);
+          if (sWts[sMap[current]]==1) {
+              continue;
+          }
+          else {
+              for (int i=0; i<_segAffIdx[current].size(); i++){
+                  int neighbour = _segAffIdx[current][i];
+                  if (sWts[sMap[neighbour]] == 1){ // ola osa einai sta boundaries exoun sWts=1
+                      v -= _segMag[i]*(1-_segAff[current][i]) ;
+                  }
+                  else {
+                      for (int b=0; b<segmentsInside.size(); b++){
+                          if (neighbour == segmentsInside[b]){
+                              v += _segMag[i]*(1-_segAff[current][i])/2; // mipws prosthetw kapoio megalo segMag polles fores
+                          }
+                      }
+                  } // i perikluetai apo alla segments pou einai oloklira eksw
+              }
+          }
+      }
+  }
+  
+  // follow connected paths and set weights accordingly (w=1 means remove)
+//   for( i=0; i<n; i++ ) {
+//     float w=sWts[i]; j=sIds[i];
+//     for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
+//       q=_segAffIdx[j][k]; 
+//       if ( sWts[sMap[q]]<1 ) { // check only neighboors not intersecting with the boundaries
+//           float wq=w*((1-_segAff[j][k])); // because big segAff means big difference
+//           if( wq<.05f ) continue; // short circuit for efficiency
+//           if( sDone[q]==sId ) {
+//             if( wq>sWts[sMap[q]] ) { sWts[sMap[q]]=wq; i=min(i,sMap[q]-1); }    //?????
+//           } else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
+//             sIds[n]=q; sWts[n]=wq; sDone[q]=sId; sMap[q]=n++;
+//           }
+//       }
+//     }
+//   }
  
   // finally remove segments connected to boundaries
   for( i=0; i<n; i++ ) {
     k = sIds[i];
     if( _segC[k]>=c0 && _segC[k]<=c1 && _segR[k]>=r0 && _segR[k]<=r1 )
-      v -= sWts[i]*_segMag[k];
+        //if(sWts[i]==1){
+            v -= sWts[i]*_segMag[k];
+        //}
   }
   v*=norm; 
-  if(v<_minScore) v=0; 
+//  if(v<_minScore) v=0; 
   box.s=v;
 }
 
@@ -502,6 +564,25 @@ void mexFunction( int nl, mxArray *pl[], int nr, const mxArray *pr[] )
 //       }
 //   }
   
+//   pl[0] = mxCreateNumericMatrix(_segIds._h+1,_segIds._w+1,mxSINGLE_CLASS,mxREAL);
+//   float *bbs = (float*) mxGetData(pl[0]);
+//   int n = 0;
+//   for (int i=0; i<_segIds._w+1; i++){
+//       for (int j=0; j<_segIds._h+1; j++){
+//          bbs[n] = _segIImg.val(i,j);
+//          n++;
+//       }
+//   }
+  
+//   pl[0] = mxCreateNumericMatrix(_segIds._h,_segIds._w,mxSINGLE_CLASS,mxREAL);
+//   float *bbs = (float*) mxGetData(pl[0]);
+//   int n = 0;
+//   for (int i=0; i<_segIds._w; i++){
+//       for (int j=0; j<_segIds._h; j++){
+//          bbs[n] = E1.val(i,j);
+//          n++;
+//       }
+//   }
 
   // create output bbs and output to Matlab
   int n = (int) boxes.size();
