@@ -9,6 +9,7 @@
 #include <vector>
 using namespace std;
 #define PI 3.14159265f
+#define AFFINITY 1.0f
 int clamp( int v, int a, int b ) { return v<a?a:v>b?b:v; }
 
 // trivial array class encapsulating pointer arrays
@@ -300,10 +301,10 @@ void EdgeBoxGenerator::scoreBox( Box &box )
     - _segIImg.val(c1,r0) - _segIImg.val(c0,r1);
   // subtract middle quarter of edges  
 //   float norm = 1.f; box.s=v*norm;
-  float norm = _scaleNorm[bw+bh]; box.s=v*norm;
+//   float norm = _scaleNorm[bw+bh]; box.s=v*norm;
 //   mexPrintf("%f\n",norm);
 //   float norm = 1; box.s=v*norm;
-//   float norm = pow(1.f/(bw*bh),_kappa); box.s=v*norm;
+  float norm = pow(1.f/(bw*bh),_kappa); box.s=v*norm;
 //   r0m=r0+bh/2; r1m=r0m+bh; c0m=c0+bw/2; c1m=c0m+bw;
 //   v -= _magIImg.val(c0m, r0m) + _magIImg.val(c1m+1,r1m+1)
 //     - _magIImg.val(c1m+1,r0m) - _magIImg.val(c0m,r1m+1);
@@ -332,6 +333,7 @@ void EdgeBoxGenerator::scoreBox( Box &box )
     sIds[n]=j; sWts[n]=1; sDone[j]=sId; sMap[j]=n++;
   }
   
+  //find all segments inside the box + on boundaries
   vector<int> segmentsInside;
   segmentsInside.clear();
   for (int c=c0; c<c1; c++) for (int r=r0; r<r1; r++){
@@ -347,7 +349,6 @@ void EdgeBoxGenerator::scoreBox( Box &box )
       }
   }
   
-  
   // remove part of the segments inside according to their affinities
   for (int c=c0; c<c1; c++) for (int r=r0; r<r1; r++){
       if (E1.val(c,r)>0){
@@ -359,19 +360,39 @@ void EdgeBoxGenerator::scoreBox( Box &box )
               for (int i=0; i<_segAffIdx[current].size(); i++){
                   int neighbour = _segAffIdx[current][i];
                   if (sWts[sMap[neighbour]] == 1){ // ola osa einai sta boundaries exoun sWts=1
-                      v -= _segMag[i]*(1-_segAff[current][i]) ;
-                  }
-                  else {
-                      for (int b=0; b<segmentsInside.size(); b++){
-                          if (neighbour == segmentsInside[b]){
-                              v += _segMag[i]*(1-_segAff[current][i])/2; // mipws prosthetw kapoio megalo segMag polles fores
+                      if (_segAff[current][i] < 0.1){
+                          if (sDone[current]==sId){
+                            sWts[sMap[current]]+= AFFINITY*(1-_segAff[current][i]);
+                          }
+                          else {
+                              sIds[n]=current; 
+                              sWts[n]=AFFINITY*(1-_segAff[current][i]);
+                              sDone[current]=sId; 
+                              sMap[current]=n++;
                           }
                       }
-                  } // i perikluetai apo alla segments pou einai oloklira eksw
+                  }
+                  else {
+                    for (int b=0; b<segmentsInside.size(); b++){
+                      if ((neighbour == segmentsInside[b]) && (_segAff[current][i] < 0.1)){
+                          if (sDone[current]==sId){
+                            sWts[sMap[current]]+= 0.1f*AFFINITY*(1-_segAff[current][i]);
+                          }
+                          else {
+                            sIds[n]=current; 
+                            sWts[n]=0.1f*AFFINITY*(1-_segAff[current][i]);
+                            sDone[current]=sId; 
+                            sMap[current]=n++;
+                          }
+                      }
+                    } // i perikluetai apo alla segments pou einai oloklira eksw
+                  }
               }
           }
       }
   }
+  
+  
   
   // follow connected paths and set weights accordingly (w=1 means remove)
 //   for( i=0; i<n; i++ ) {
@@ -393,10 +414,12 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   // finally remove segments connected to boundaries
   for( i=0; i<n; i++ ) {
     k = sIds[i];
-    if( _segC[k]>=c0 && _segC[k]<=c1 && _segR[k]>=r0 && _segR[k]<=r1 )
+    if( _segC[k]>=c0 && _segC[k]<=c1 && _segR[k]>=r0 && _segR[k]<=r1 ){
         //if(sWts[i]==1){
             v -= sWts[i]*_segMag[k];
+//             mexPrintf("%f\n",sWts[i]);
         //}
+    }
   }
   v*=norm; 
 //  if(v<_minScore) v=0; 
