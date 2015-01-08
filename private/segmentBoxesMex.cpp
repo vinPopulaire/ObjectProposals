@@ -338,13 +338,7 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   segmentsInside.clear();
   for (int c=c0; c<c1; c++) for (int r=r0; r<r1; r++){
       int found = 0;
-      for (int i=0; i<segmentsInside.size(); i++){
-          if (segmentsInside[i]==_segIds.val(c,r)) {
-              found = 1;
-              break;
-          }   
-      }
-      if (found == 0){
+      if(std::find(segmentsInside.begin(), segmentsInside.end(), _segIds.val(c,r)) == segmentsInside.end()){
           segmentsInside.push_back(_segIds.val(c,r));
       }
   }
@@ -360,7 +354,7 @@ void EdgeBoxGenerator::scoreBox( Box &box )
               for (int i=0; i<_segAffIdx[current].size(); i++){
                   int neighbour = _segAffIdx[current][i];
                   if (sWts[sMap[neighbour]] == 1){ // ola osa einai sta boundaries exoun sWts=1
-                      if (_segAff[current][i] < 0.1){
+                      if (1){ // if (_segAff[current][i] < 0.1)
                           if (sDone[current]==sId){
                             sWts[sMap[current]]+= AFFINITY*(1-_segAff[current][i]);
                           }
@@ -373,10 +367,9 @@ void EdgeBoxGenerator::scoreBox( Box &box )
                       }
                   }
                   else {
-                    for (int b=0; b<segmentsInside.size(); b++){
-                      if ((neighbour == segmentsInside[b]) && (_segAff[current][i] < 0.1)){
+                      if (std::find(segmentsInside.begin(), segmentsInside.end(), neighbour) != segmentsInside.end()) {// to oti afairw kai pali gia ta eswterika an kai me mikrotero vathmo simainei oti eniaia segments exoun megalutero score
                           if (sDone[current]==sId){
-                            sWts[sMap[current]]+= 0.1f*AFFINITY*(1-_segAff[current][i]);
+                            sWts[sMap[current]]+= 0.1f*AFFINITY*(_segAff[current][i]); //segments me megalutero affinity afairountai me megalutero suntelesti
                           }
                           else {
                             sIds[n]=current; 
@@ -385,8 +378,7 @@ void EdgeBoxGenerator::scoreBox( Box &box )
                             sMap[current]=n++;
                           }
                       }
-                    } // i perikluetai apo alla segments pou einai oloklira eksw
-                  }
+                  } // i perikluetai apo alla segments pou einai oloklira eksw
               }
           }
       }
