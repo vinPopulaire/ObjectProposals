@@ -41,6 +41,8 @@ void boxesNms( Boxes &boxes, float thr, int maxBoxes );
   vectorf _segMag;                  // segment edge magnitude sums
   arrayf _segIImg;
   arrayf E1;
+  vector<vectorf> _segAff;          // segment affinities
+  vector<vectori> _segAffIdx;       // segment neighbors
 
 // main class for generating edge boxes
 class EdgeBoxGenerator
@@ -60,8 +62,6 @@ private:
   int _segCnt;                      // total segment count
   
   vectori _segR, _segC;             // segment lower-right pixel
-  vector<vectorf> _segAff;          // segment affinities
-  vector<vectori> _segAffIdx;       // segment neighbors
 
   // data structures for efficiency (see prepDataStructs)
   arrayf _magIImg; arrayi _hIdxImg, _vIdxImg;
@@ -69,7 +69,7 @@ private:
   float _scStep, _arStep, _rcStepRatio;
 
   // data structures for efficiency (see scoreBox)
-  arrayf _sWts; arrayi _sDone, _sMap, _sIds; int _sId;
+  arrayf _sWts, _sDist; arrayi _sDone, _sMap, _sIds; int _sId;
 
   // helper routines
   void prepDataStructs( arrayf &I );
@@ -92,18 +92,30 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
     int c, r, cd, rd, c0, r0, i, j; h=I._h; w=I._w;
     vectori _R, _C;
     
-    _segIds.init(h,w);
-    for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
+    _segIds.init(h+2,w+2);
+    for( c=0; c<w+1; c++) {
+        _segIds.val(c,0)=-1;
+        _segIds.val(c,h+1)=-1;
+    }
+    for( r=0; r<h+1; r++) {
+        _segIds.val(0,r)=-1;
+        _segIds.val(w+1,r)=-1;
+    }
+    
+    for( c=1; c<w+1; c++ ) for( r=1; r<h+1; r++ ) {
 //         if( c==0 || r==0 || c==w-1 || r==h-1 )
 //             _segIds.val(c,r)=-1; 
 //         else _segIds.val(c,r)=int(I.val(c,r));
-        _segIds.val(c,r)=int(I.val(c,r));
-        if (I.val(c,r) > _segCnt)
-            _segCnt = int(I.val(c,r));
+        _segIds.val(c,r)=int(I.val(c-1,r-1));
+        if (I.val(c-1,r-1) > _segCnt)
+            _segCnt = int(I.val(c-1,r-1));
     }
     
+    w=w+2; // for when we added the -1 on the boundaries
+    h=h+2;
+    
     _segCnt++; // because we need to count the 0 id segments
-// 
+ 
 //     for( r=0; r<h; r++ ){
 //         for( c=0; c<w; c++ ){
 //         
@@ -111,16 +123,7 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
 //         }
 //         mexPrintf("\n");
 //     }
-//     
-// //      _segIds.init(h,w);
-//      for( r=0; r<h; r++ ){
-//          for( c=0; c<w; c++ ){
-// //             _segIds.val(c,r) = I.val(c,r);
-//             mexPrintf("%f ",I.val(c,r));
-//         }
-//         mexPrintf("\n");
-//     } 
-    
+     
     // segments affinities
     _segAff.resize(_segCnt); _segAffIdx.resize(_segCnt);
     for(int i=0; i<_segCnt; i++) {
@@ -134,15 +137,16 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
         if (w>maxWeight)
             maxWeight = w;
     }
+    float normalize = sqrt(3.0)/256;
     
     for(int i=0; i<edges._h; i++){
         int a = (int)edges.val(0,i);
         int b = (int)edges.val(1,i);
-        float w = (edges.val(2,i))/maxWeight; //kanonikopoiisi sto 1
+        float w = (edges.val(2,i))*normalize; //kanonikopoiisi sto 1 
         _segAff[a].push_back(w); _segAffIdx[a].push_back(b);
         _segAff[b].push_back(w); _segAffIdx[b].push_back(a);
     }
-    
+     
 //      for(int i = 0; i < _segAff.size(); i++){
 //          for(int j = 0; j < _segAff[i].size(); j++)
 //              mexPrintf("%d %d %f\n",i,_segAffIdx[i][j],_segAff[i][j]);
@@ -154,15 +158,17 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
     tempMag.resize(_segCnt,0);
     _segMag.resize(_segCnt,0);
     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ){
-        int j=_segIds.val(c,r);
-        tempMag[j]=0;
+        if (j=_segIds.val(c,r)>-1){
+            tempMag[j]=0;
+        }
     }
     
     int segMagMax=0;
     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ){
-        if( (j=_segIds.val(c,r))>-1 ) tempMag[j]++;
-        
-        if (tempMag[j] > segMagMax) segMagMax = tempMag[j];
+        if ( (j=_segIds.val(c,r))>-1 ) {
+            tempMag[j]++;
+            if (tempMag[j] > segMagMax) segMagMax = tempMag[j];
+        }
     }
     
     for (int i=0; i<_segMag.size(); i++)
@@ -214,8 +220,8 @@ void EdgeBoxGenerator::prepDataStructs( arrayf &I )
   
 //   float _segIImgMax = 0;
   _segIImg.init(h+1,w+1);
-  for( c=0; c<w; c++ ) {
-      for( r=0; r<h; r++ ) {
+  for( c=1; c<w; c++ ) {
+      for( r=1; r<h; r++ ) {
          _segIImg.val(c+1,r+1) = E1.val(c,r) + _segIImg.val(c,r+1) +
          _segIImg.val(c+1,r) - _segIImg.val(c,r);
 //          if (_segIImg.val(c+1,r+1)>_segIImgMax) _segIImgMax = _segIImg.val(c+1,r+1);
@@ -284,6 +290,7 @@ void EdgeBoxGenerator::prepDataStructs( arrayf &I )
 
   // initialize scoreBox() data structures
   int n=_segCnt+1; _sWts.init(n,1);
+  _sDist.init(n,1);
   _sDone.init(n,1); _sMap.init(n,1); _sIds.init(n,1);
   for( i=0; i<n; i++ ) _sDone.val(0,i)=-1; _sId=0;
 }
@@ -291,12 +298,19 @@ void EdgeBoxGenerator::prepDataStructs( arrayf &I )
 void EdgeBoxGenerator::scoreBox( Box &box )
 {
   int i, j, k, q, bh, bw, r0, c0, r1, c1, r0m, r1m, c0m, c1m;
-  float *sWts=_sWts._x; int sId=_sId++;
+  float *sWts=_sWts._x, *sDist=_sDist._x; 
+  int sId=_sId++;
   int *sDone=_sDone._x, *sMap=_sMap._x, *sIds=_sIds._x;
   // add edge count inside box
   r1=clamp(box.r+box.h,0,h-1); r0=box.r=clamp(box.r,0,h-1);
   c1=clamp(box.c+box.w,0,w-1); c0=box.c=clamp(box.c,0,w-1);
   bh=box.h=r1-box.r; bh/=2; bw=box.w=c1-box.c; bw/=2;
+
+//   if (c0==0||c1==0||r0==0||r1==0) {
+//       box.s=0;
+//       return;
+//   }
+  
   float v = _segIImg.val(c0,r0) + _segIImg.val(c1,r1)
     - _segIImg.val(c1,r0) - _segIImg.val(c0,r1);
   // subtract middle quarter of edges  
@@ -312,97 +326,49 @@ void EdgeBoxGenerator::scoreBox( Box &box )
 //  if( box.s<_minScore ) { box.s=0; return; }
   
   // find interesecting segments along four boundaries
-  
-  int sizeOfsWts=_segCnt+1; _sWts.init(sizeOfsWts,1);
+ 
+  for (i=0;i<_segCnt+1;i++) {
+      _sDist.val(0,i)=0;
+      _sWts.val(0,i)=0;
+  }
   
   int cs, ce, rs, re, n=0;
   cs=_hIdxImg.val(c0,r0); ce=_hIdxImg.val(c1,r0); // top
   for( i=cs; i<=ce; i++ ) if( (j=_hIdxs[r0][i])>0 && sDone[j]!=sId ) {
-    sIds[n]=j; sWts[n]=1; sDone[j]=sId; sMap[j]=n++;
+    sIds[n]=j; sDist[n]=0; sDone[j]=sId; sMap[j]=n++;
   }
   cs=_hIdxImg.val(c0,r1); ce=_hIdxImg.val(c1,r1); // bottom
   for( i=cs; i<=ce; i++ ) if( (j=_hIdxs[r1][i])>0 && sDone[j]!=sId ) {
-    sIds[n]=j; sWts[n]=1; sDone[j]=sId; sMap[j]=n++;
+    sIds[n]=j; sDist[n]=0; sDone[j]=sId; sMap[j]=n++;
   }
   rs=_vIdxImg.val(c0,r0); re=_vIdxImg.val(c0,r1); // left
   for( i=rs; i<=re; i++ ) if( (j=_vIdxs[c0][i])>0 && sDone[j]!=sId ) {
-    sIds[n]=j; sWts[n]=1; sDone[j]=sId; sMap[j]=n++;
+    sIds[n]=j; sDist[n]=0; sDone[j]=sId; sMap[j]=n++;
   }
   rs=_vIdxImg.val(c1,r0); re=_vIdxImg.val(c1,r1); // right
   for( i=rs; i<=re; i++ ) if( (j=_vIdxs[c1][i])>0 && sDone[j]!=sId ) {
-    sIds[n]=j; sWts[n]=1; sDone[j]=sId; sMap[j]=n++;
+    sIds[n]=j; sDist[n]=0; sDone[j]=sId; sMap[j]=n++;
   }
   
-  //find all segments inside the box + on boundaries
-  vector<int> segmentsInside;
-  segmentsInside.clear();
-  for (int c=c0; c<c1; c++) for (int r=r0; r<r1; r++){
-      int found = 0;
-      if(std::find(segmentsInside.begin(), segmentsInside.end(), _segIds.val(c,r)) == segmentsInside.end()){
-          segmentsInside.push_back(_segIds.val(c,r));
+  // follow connected paths and set weights accordingly (w=0 means remove)
+  for( i=0; i<n; i++ ) {
+    float w=sDist[i]; j=sIds[i];
+    for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
+      q=_segAffIdx[j][k]; 
+      float wq=max(w,_segAff[j][k]); // because big segAff means big difference
+      if( sDone[q]==sId ) {
+        if( wq<sDist[sMap[q]] ) { sDist[sMap[q]]=wq; i=min(i,sMap[q]-1); }    //?????
+      } 
+      else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
+        sIds[n]=q; sDist[n]=wq; sDone[q]=sId; sMap[q]=n++;
       }
+    }
   }
   
-  // remove part of the segments inside according to their affinities
-  for (int c=c0; c<c1; c++) for (int r=r0; r<r1; r++){
-      if (E1.val(c,r)>0){
-          int current = _segIds.val(c,r);
-          if (sWts[sMap[current]]==1) {
-              continue;
-          }
-          else {
-              for (int i=0; i<_segAffIdx[current].size(); i++){
-                  int neighbour = _segAffIdx[current][i];
-                  if (sWts[sMap[neighbour]] == 1){ // ola osa einai sta boundaries exoun sWts=1
-                      if (1){ // if (_segAff[current][i] < 0.1)
-                          if (sDone[current]==sId){
-                            sWts[sMap[current]]+= AFFINITY*(1-_segAff[current][i]);
-                          }
-                          else {
-                              sIds[n]=current; 
-                              sWts[n]=AFFINITY*(1-_segAff[current][i]);
-                              sDone[current]=sId; 
-                              sMap[current]=n++;
-                          }
-                      }
-                  }
-                  else {
-                      if (std::find(segmentsInside.begin(), segmentsInside.end(), neighbour) != segmentsInside.end()) {// to oti afairw kai pali gia ta eswterika an kai me mikrotero vathmo simainei oti eniaia segments exoun megalutero score
-                          if (sDone[current]==sId){
-                            sWts[sMap[current]]+= 0.1f*AFFINITY*(_segAff[current][i]); //segments me megalutero affinity afairountai me megalutero suntelesti
-                          }
-                          else {
-                            sIds[n]=current; 
-                            sWts[n]=0.1f*AFFINITY*(1-_segAff[current][i]);
-                            sDone[current]=sId; 
-                            sMap[current]=n++;
-                          }
-                      }
-                  } // i perikluetai apo alla segments pou einai oloklira eksw
-              }
-          }
-      }
+  for ( i=0; i<n; i++ ) {
+      sWts[i] = 1-sDist[i];
   }
   
-  
-  
-  // follow connected paths and set weights accordingly (w=1 means remove)
-//   for( i=0; i<n; i++ ) {
-//     float w=sWts[i]; j=sIds[i];
-//     for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
-//       q=_segAffIdx[j][k]; 
-//       if ( sWts[sMap[q]]<1 ) { // check only neighboors not intersecting with the boundaries
-//           float wq=w*((1-_segAff[j][k])); // because big segAff means big difference
-//           if( wq<.05f ) continue; // short circuit for efficiency
-//           if( sDone[q]==sId ) {
-//             if( wq>sWts[sMap[q]] ) { sWts[sMap[q]]=wq; i=min(i,sMap[q]-1); }    //?????
-//           } else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
-//             sIds[n]=q; sWts[n]=wq; sDone[q]=sId; sMap[q]=n++;
-//           }
-//       }
-//     }
-//   }
- 
   // finally remove segments connected to boundaries
   for( i=0; i<n; i++ ) {
     k = sIds[i];
@@ -579,12 +545,12 @@ void mexFunction( int nl, mxArray *pl[], int nr, const mxArray *pr[] )
 //       }
 //   }
   
-//   pl[0] = mxCreateNumericMatrix(_segIds._h+1,_segIds._w+1,mxSINGLE_CLASS,mxREAL);
+//   pl[0] = mxCreateNumericMatrix(_segIds._h,_segIds._w,mxSINGLE_CLASS,mxREAL);
 //   float *bbs = (float*) mxGetData(pl[0]);
 //   int n = 0;
-//   for (int i=0; i<_segIds._w+1; i++){
-//       for (int j=0; j<_segIds._h+1; j++){
-//          bbs[n] = _segIImg.val(i,j);
+//   for (int i=0; i<_segIds._w; i++){
+//       for (int j=0; j<_segIds._h; j++){
+//          bbs[n] = _segIds.val(i,j);
 //          n++;
 //       }
 //   }
