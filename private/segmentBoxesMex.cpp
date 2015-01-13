@@ -91,29 +91,16 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
 {
     int c, r, cd, rd, c0, r0, i, j; h=I._h; w=I._w;
     vectori _R, _C;
-    
-    _segIds.init(h+2,w+2);
-    for( c=0; c<w+1; c++) {
-        _segIds.val(c,0)=-1;
-        _segIds.val(c,h+1)=-1;
-    }
-    for( r=0; r<h+1; r++) {
-        _segIds.val(0,r)=-1;
-        _segIds.val(w+1,r)=-1;
-    }
-    
-    for( c=1; c<w+1; c++ ) for( r=1; r<h+1; r++ ) {
+
+    _segIds.init(h,w);
+    for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
 //         if( c==0 || r==0 || c==w-1 || r==h-1 )
 //             _segIds.val(c,r)=-1; 
 //         else _segIds.val(c,r)=int(I.val(c,r));
-        _segIds.val(c,r)=int(I.val(c-1,r-1));
-        if (I.val(c-1,r-1) > _segCnt)
-            _segCnt = int(I.val(c-1,r-1));
+        _segIds.val(c,r)=int(I.val(c,r));
+        if (I.val(c,r) > _segCnt)
+            _segCnt = int(I.val(c,r));
     }
-    
-    w=w+2; // for when we added the -1 on the boundaries
-    h=h+2;
-    
     _segCnt++; // because we need to count the 0 id segments
  
 //     for( r=0; r<h; r++ ){
