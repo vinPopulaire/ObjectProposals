@@ -36,13 +36,6 @@ bool boxesCompare( const Box &a, const Box &b ) { return a.s<b.s; }
 float boxesOverlap( Box &a, Box &b );
 void boxesNms( Boxes &boxes, float thr, int maxBoxes );
 
-  arrayi _segIds;                   // segment ids (-1/0 means no segment)
-  vectorf _segMag;                  // segment edge magnitude sums
-  arrayf _segIImg;
-  arrayf E1;
-  vector<vectorf> _segAff;          // segment affinities
-  vector<vectori> _segAffIdx;       // segment neighbors
-
 // main class for generating edge boxes
 class EdgeBoxGenerator
 {
@@ -59,6 +52,12 @@ private:
   // edge segment information (see clusterEdges)
   int h, w;                         // image dimensions
   int _segCnt;                      // total segment count
+  arrayi _segIds;                   // segment ids (-1/0 means no segment)
+  vectorf _segMag;                  // segment edge magnitude sums
+  arrayf _segIImg;
+  arrayf E1;
+  vector<vectorf> _segAff;          // segment affinities
+  vector<vectori> _segAffIdx;       // segment neighbors
   
   vectori _segR, _segC;             // segment lower-right pixel
 
@@ -255,21 +254,7 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   for ( i=0; i<n; i++ ) {
       sWts[i] = 1-sDist[i];
   }
-  
-//   for( i=0; i<n; i++ ) {
-//     float w=sWts[i]; j=sIds[i];
-//     for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
-//       q=_segAffIdx[j][k]; 
-//       float wq=w*(1-_segAff[j][k]);
-//       if( sDone[q]==sId ) {
-//         if( wq>sWts[sMap[q]] ) { sWts[sMap[q]]=wq; i=min(i,sMap[q]-1); }
-//       } 
-//       else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
-//         sIds[n]=q; sWts[n]=wq; sDone[q]=sId; sMap[q]=n++;
-//       }
-//     }
-//   }
-  
+ 
   // finally remove segments connected to boundaries
   for( i=0; i<n; i++ ) {
     k = sIds[i];
