@@ -36,7 +36,8 @@ txtdir = 'boxes\VOCdevkit\Segments\Segments\';
 edgedir = 'boxes\VOCdevkit\Edges\Edges\';
 
 %%% to change
-testImage = '000004';
+testImage = '000002';
+figure(1);
 
 bbs=segmentBoxes([txtdir '' testImage '.txt'],[edgedir '' testImage '.txt'],testImage,opts);
 
@@ -46,11 +47,19 @@ n = data.n;
 gt = gt(1:n);
 
 %%% to change
-gt = cell2mat(gt(4));
-
-% gt = bbs(1:16,1:4);
+gt = cell2mat(gt(2));
 
 gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
 original = imread([imgdir '' testImage '.jpg']);
-figure(1); bbGt('showRes',original,gtRes,dtRes(dtRes(:,6)==1,:));
-title('green=matched gt  red=missed gt  dashed-green=matched detect');
+subplot(1,2,1);
+bbGt('showRes',original,gtRes,dtRes(dtRes(:,6)==1,:));
+title(['green=matched gt' char(10) 'red=missed gt' char(10) 'dashed-green=matched detect']);
+
+%%% top scoring boxes
+gt = bbs(1:10,1:4);
+
+gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
+original = imread([imgdir '' testImage '.jpg']);
+subplot(1,2,2);
+bbGt('showRes',original,gtRes,dtRes(dtRes(:,6)==1,:));
+title('10 top scoring boxes');
