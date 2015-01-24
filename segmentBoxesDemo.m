@@ -5,8 +5,8 @@ opts.beta  = .75;     % nms threshold for object proposals
 opts.minScore = .01;  % min score of boxes to detect
 opts.maxBoxes = 1e4;  % max number of boxes to detect
 
-% %% detect Edge Box bounding box proposals (see segmentBoxes.m)
-% 
+%% detect Edge Box bounding box proposals (see segmentBoxes.m)
+
 % tic, bbs=segmentBoxes('peppers.txt','edges.txt','peppers',opts); toc % 'peppers' is the id of the image
 % 
 % %% show evaluation results (using pre-defined or interactive boxes)
@@ -21,14 +21,14 @@ opts.maxBoxes = 1e4;  % max number of boxes to detect
 % original = imread('peppers.png');
 % figure(1); bbGt('showRes',original,gtRes,dtRes(dtRes(:,6)==1,:));
 % title('green=matched gt  red=missed gt  dashed-green=matched detect');
-% 
-% %% run and evaluate on entire dataset (see boxesData.m and boxesEval.m)
-% % if(~exist('boxes/VOCdevkit/','dir')), return; end
-% % split='val'; data=boxesData('split',split);
-% % nm='segmentBoxes70'; opts.name=['boxes/' nm '-' split '.mat'];
-% % segmentBoxes(data.imgs,data.edges,data.ids,opts); opts.name=[];
-% % boxesEval('data',data,'names',nm,'thrs',.7,'show',2);
-% % boxesEval('data',data,'names',nm,'thrs',.5:.05:1,'cnts',1000,'show',3);
+
+%% run and evaluate on entire dataset (see boxesData.m and boxesEval.m)
+% if(~exist('boxes/VOCdevkit/','dir')), return; end
+% split='val'; data=boxesData('split',split);
+% nm='segmentBoxes70'; opts.name=['boxes/' nm '-' split '.mat'];
+% segmentBoxes(data.imgs,data.edges,data.ids,opts); opts.name=[];
+% boxesEval('data',data,'names',nm,'thrs',.7,'show',2);
+% boxesEval('data',data,'names',nm,'thrs',.5:.05:1,'cnts',1000,'show',3);
 
 %% Pascal images test
 imgdir = 'boxes\VOCdevkit\VOC2007\JPEGImages\';
@@ -36,7 +36,7 @@ txtdir = 'boxes\VOCdevkit\Segments\Segments\';
 edgedir = 'boxes\VOCdevkit\Edges\Edges\';
 
 %%% to change
-testImage = '000002';
+testImage = '000001';
 figure(1);
 
 bbs=segmentBoxes([txtdir '' testImage '.txt'],[edgedir '' testImage '.txt'],testImage,opts);
@@ -47,7 +47,7 @@ n = data.n;
 gt = gt(1:n);
 
 %%% to change
-gt = cell2mat(gt(2));
+gt = cell2mat(gt(1));
 
 gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
 original = imread([imgdir '' testImage '.jpg']);

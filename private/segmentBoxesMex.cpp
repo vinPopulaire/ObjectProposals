@@ -99,10 +99,6 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
      
     // segments affinities
     _segAff.resize(_segCnt); _segAffIdx.resize(_segCnt);
-//     for(int i=0; i<_segCnt; i++) {
-//         _segAff[i].resize(0);
-//         _segAffIdx[i].resize(0);
-//     }
     
     float normalize = float(sqrt(3.0)/256);
     
@@ -116,18 +112,11 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
          
     // compute _segMag
     _segMag.resize(_segCnt,0);
-//     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ){  //axristo
-//         if (j=_segIds.val(c,r)>-1){
-//             _segMag[j]=0;
-//         }
-//     }
     
     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ){
-//         if ( (j=_segIds.val(c,r))>-1 ) {    //axristo to if
-//             _segMag[j]++;
-//         }
         _segMag[_segIds.val(c,r)]++;
-    }      
+    }  
+    
     // compute _segC and _segR
     _segC.resize(_segCnt); _segR.resize(_segCnt);
     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
@@ -214,11 +203,6 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   if( box.s<_minScore ) { box.s=0; return; }
   
   // find interesecting segments along four boundaries
- 
-//   for (i=0;i<_segCnt+1;i++) {   // axristo
-//       _sDist.val(0,i)=0;
-//       _sWts.val(0,i)=0;
-//   }
   
   int cs, ce, rs, re, n=0;
   cs=_hIdxImg.val(c0,r0); ce=_hIdxImg.val(c1,r0); // top
