@@ -86,7 +86,7 @@ void EdgeBoxGenerator::generate( Boxes &boxes, arrayf &I, arrayf &edges )
 
 void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
 {
-    int c, r, cd, rd, c0, r0, i, j; h=I._h; w=I._w;
+    int c, r, j; h=I._h; w=I._w;
     vectori _R, _C;
 
     _segIds.init(h,w);
@@ -99,12 +99,12 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
      
     // segments affinities
     _segAff.resize(_segCnt); _segAffIdx.resize(_segCnt);
-    for(int i=0; i<_segCnt; i++) {
-        _segAff[i].resize(0);
-        _segAffIdx[i].resize(0);
-    }
+//     for(int i=0; i<_segCnt; i++) {
+//         _segAff[i].resize(0);
+//         _segAffIdx[i].resize(0);
+//     }
     
-    float normalize = sqrt(3.0)/256;
+    float normalize = float(sqrt(3.0)/256);
     
     for(int i=0; i<edges._h; i++){
         int a = (int)edges.val(0,i);
@@ -113,26 +113,27 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
         _segAff[a].push_back(w); _segAffIdx[a].push_back(b);
         _segAff[b].push_back(w); _segAffIdx[b].push_back(a);
     }
-     
+         
     // compute _segMag
     _segMag.resize(_segCnt,0);
-    for( c=0; c<w; c++ ) for( r=0; r<h; r++ ){
-        if (j=_segIds.val(c,r)>-1){
-            _segMag[j]=0;
-        }
-    }
+//     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ){  //axristo
+//         if (j=_segIds.val(c,r)>-1){
+//             _segMag[j]=0;
+//         }
+//     }
     
     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ){
-        if ( (j=_segIds.val(c,r))>-1 ) {
-            _segMag[j]++;
-        }
+//         if ( (j=_segIds.val(c,r))>-1 ) {    //axristo to if
+//             _segMag[j]++;
+//         }
+        _segMag[_segIds.val(c,r)]++;
     }      
-    
     // compute _segC and _segR
     _segC.resize(_segCnt); _segR.resize(_segCnt);
-    for( c=0; c<w; c++ ) for( r=0; r<h; r++ )
-        if( (j=_segIds.val(c,r))>-1 ) { _segC[j]=c; _segR[j]=r; }
-
+    for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
+        j=_segIds.val(c,r);
+        _segC[j]=c; _segR[j]=r;
+    }
 }
 
 void EdgeBoxGenerator::prepDataStructs( arrayf &I )
@@ -201,38 +202,39 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   // add edge count inside box
   r1=clamp(box.r+box.h,0,h-1); r0=box.r=clamp(box.r,0,h-1);
   c1=clamp(box.c+box.w,0,w-1); c0=box.c=clamp(box.c,0,w-1);
-  bh=box.h=r1-box.r; bh/=2; bw=box.w=c1-box.c; bw/=2;
+  bh=box.h=r1-box.r; bw=box.w=c1-box.c; 
+//   bw/=2;bh/=2; 
 
   float v = _segIImg.val(c0,r0) + _segIImg.val(c1,r1)
     - _segIImg.val(c1,r0) - _segIImg.val(c0,r1);
   
   float norm = pow(1.f/(bw*bh),_kappa); box.s=v*norm;
-
+  
   // short circuit computation if impossible to score highly
   if( box.s<_minScore ) { box.s=0; return; }
   
   // find interesecting segments along four boundaries
  
-  for (i=0;i<_segCnt+1;i++) {
-      _sDist.val(0,i)=0;
-      _sWts.val(0,i)=0;
-  }
+//   for (i=0;i<_segCnt+1;i++) {   // axristo
+//       _sDist.val(0,i)=0;
+//       _sWts.val(0,i)=0;
+//   }
   
   int cs, ce, rs, re, n=0;
   cs=_hIdxImg.val(c0,r0); ce=_hIdxImg.val(c1,r0); // top
-  for( i=cs; i<=ce; i++ ) if( (j=_hIdxs[r0][i])>0 && sDone[j]!=sId ) {
+  for( i=cs; i<=ce; i++ ) if( (j=_hIdxs[r0][i])>=0 && sDone[j]!=sId ) {
     sIds[n]=j; sWts[n]=1; sDist[n]=0; sDone[j]=sId; sMap[j]=n++;
   }
   cs=_hIdxImg.val(c0,r1); ce=_hIdxImg.val(c1,r1); // bottom
-  for( i=cs; i<=ce; i++ ) if( (j=_hIdxs[r1][i])>0 && sDone[j]!=sId ) {
+  for( i=cs; i<=ce; i++ ) if( (j=_hIdxs[r1][i])>=0 && sDone[j]!=sId ) {
     sIds[n]=j; sWts[n]=1; sDist[n]=0; sDone[j]=sId; sMap[j]=n++;
   }
   rs=_vIdxImg.val(c0,r0); re=_vIdxImg.val(c0,r1); // left
-  for( i=rs; i<=re; i++ ) if( (j=_vIdxs[c0][i])>0 && sDone[j]!=sId ) {
+  for( i=rs; i<=re; i++ ) if( (j=_vIdxs[c0][i])>=0 && sDone[j]!=sId ) {
     sIds[n]=j; sWts[n]=1; sDist[n]=0; sDone[j]=sId; sMap[j]=n++;
   }
   rs=_vIdxImg.val(c1,r0); re=_vIdxImg.val(c1,r1); // right
-  for( i=rs; i<=re; i++ ) if( (j=_vIdxs[c1][i])>0 && sDone[j]!=sId ) {
+  for( i=rs; i<=re; i++ ) if( (j=_vIdxs[c1][i])>=0 && sDone[j]!=sId ) {
     sIds[n]=j; sWts[n]=1; sDist[n]=0; sDone[j]=sId; sMap[j]=n++;
   }
   
@@ -240,10 +242,10 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   for( i=0; i<n; i++ ) {
     float w=sDist[i]; j=sIds[i];
     for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
-      q=_segAffIdx[j][k]; 
+      q=_segAffIdx[j][k];
       float wq=max(w,_segAff[j][k]); // because big segAff means big difference
       if( sDone[q]==sId ) {
-        if( wq<sDist[sMap[q]] ) { sDist[sMap[q]]=wq; i=min(i,sMap[q]-1); }    //?????
+        if( wq<sDist[sMap[q]] ) { sDist[sMap[q]]=wq; i=min(i,sMap[q]-1); }
       } 
       else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
         sIds[n]=q; sDist[n]=wq; sDone[q]=sId; sMap[q]=n++;
@@ -262,8 +264,8 @@ void EdgeBoxGenerator::scoreBox( Box &box )
         v -= sWts[i]*_segMag[k];
     }
   }
-  v*=norm; 
- if(v<_minScore) v=0; 
+  v*=norm;
+  if(v<_minScore) v=0; 
   box.s=v;
 }
 
