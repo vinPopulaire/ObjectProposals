@@ -88,12 +88,19 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
 {
     int c, r, j; h=I._h; w=I._w;
     vectori _R, _C;
+    
+    w=w+2;
+    h=h+2;
 
     _segIds.init(h,w);
-       for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
-        _segIds.val(c,r)=int(I.val(c,r));
-        if (I.val(c,r) > _segCnt)
-            _segCnt = int(I.val(c,r));
+    for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
+        if( c==0 || r==0 || c==w-1 || r==h-1)
+            _segIds.val(c,r)=-1;
+        else {
+            _segIds.val(c,r)=int(I.val(c-1,r-1));
+            if (I.val(c-1,r-1) > _segCnt)
+                _segCnt = int(I.val(c-1,r-1));
+        }
     }
     _segCnt++; // because we need to count the 0 id segments
      
@@ -111,17 +118,19 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
     }
          
     // compute _segMag
-    _segMag.resize(_segCnt,0);
+    _segMag.resize(_segCnt,0); 
     
     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ){
-        _segMag[_segIds.val(c,r)]++;
-    }  
+            if((j=_segIds.val(c,r))>-1)
+                _segMag[j]++;
+    }
     
     // compute _segC and _segR
     _segC.resize(_segCnt); _segR.resize(_segCnt);
     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
-        j=_segIds.val(c,r);
-        _segC[j]=c; _segR[j]=r;
+        if( (j=_segIds.val(c,r))>-1) {
+            _segC[j]=c; _segR[j]=r;
+        }
     }
 }
 
@@ -144,7 +153,7 @@ void EdgeBoxGenerator::prepDataStructs( arrayf &I )
   for( i=0; i<_segCnt; i++ ) if( _segMag[i]>0 ) {
     E1.val(_segC[i],_segR[i]) = float(_segMag[i]);
   }
-
+  
   _segIImg.init(h+1,w+1);
   for( c=1; c<w; c++ ) {
       for( r=1; r<h; r++ ) {
@@ -194,8 +203,8 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   bh=box.h=r1-box.r; bw=box.w=c1-box.c; 
 //   bw/=2;bh/=2; 
 
-  float v = _segIImg.val(c0,r0) + _segIImg.val(c1,r1)
-    - _segIImg.val(c1,r0) - _segIImg.val(c0,r1);
+  float v = _segIImg.val(c0,r0) + _segIImg.val(c1+1,r1+1)
+    - _segIImg.val(c1+1,r0) - _segIImg.val(c0,r1+1);
   
   float norm = pow(1.f/(bw*bh),_kappa); box.s=v*norm;
   
