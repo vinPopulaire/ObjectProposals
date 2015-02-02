@@ -89,18 +89,26 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
     int c, r, j; h=I._h; w=I._w;
     vectori _R, _C;
     
-    w=w+2;
-    h=h+2;
-
+//     w=w+2;
+//     h=h+2;
+// 
+//     _segIds.init(h,w);
+//     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
+//         if( c==0 || r==0 || c==w-1 || r==h-1)
+//             _segIds.val(c,r)=-1;
+//         else {
+//             _segIds.val(c,r)=int(I.val(c-1,r-1));
+//             if (I.val(c-1,r-1) > _segCnt)
+//                 _segCnt = int(I.val(c-1,r-1));
+//         }
+//     }
+//     _segCnt++; // because we need to count the 0 id segments
+    
     _segIds.init(h,w);
-    for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
-        if( c==0 || r==0 || c==w-1 || r==h-1)
-            _segIds.val(c,r)=-1;
-        else {
-            _segIds.val(c,r)=int(I.val(c-1,r-1));
-            if (I.val(c-1,r-1) > _segCnt)
-                _segCnt = int(I.val(c-1,r-1));
-        }
+       for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
+        _segIds.val(c,r)=int(I.val(c,r));
+        if (I.val(c,r) > _segCnt)
+            _segCnt = int(I.val(c,r));
     }
     _segCnt++; // because we need to count the 0 id segments
      
@@ -250,6 +258,19 @@ void EdgeBoxGenerator::scoreBox( Box &box )
       sWts[i] = 1-sDist[i];
   }
  
+//     for( i=0; i<n; i++ ) {
+//     float w=sWts[i]; j=sIds[i];
+//     for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
+//       q=_segAffIdx[j][k]; float wq=w*(1-_segAff[j][k]);
+//       if( wq<.05f ) continue; // short circuit for efficiency
+//       if( sDone[q]==sId ) {
+//         if( wq>sWts[sMap[q]] ) { sWts[sMap[q]]=wq; i=min(i,sMap[q]-1); }    //?????
+//       } else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
+//         sIds[n]=q; sWts[n]=wq; sDone[q]=sId; sMap[q]=n++;
+//       }
+//     }
+//   }
+  
   // finally remove segments connected to boundaries
   for( i=0; i<n; i++ ) {
     k = sIds[i];
