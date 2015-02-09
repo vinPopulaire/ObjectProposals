@@ -36,6 +36,7 @@ bool boxesCompare( const Box &a, const Box &b ) { return a.s<b.s; }
 float boxesOverlap( Box &a, Box &b );
 void boxesNms( Boxes &boxes, float thr, int maxBoxes );
 
+
 // main class for generating edge boxes
 class EdgeBoxGenerator
 {
@@ -58,9 +59,10 @@ private:
   arrayf E1;
   vector<vectorf> _segAff;          // segment affinities
   vector<vectori> _segAffIdx;       // segment neighbors
+
+  Boxes _segmentBoxes;
   
   vectori _segR, _segC;             // segment lower-right pixel
-
   // data structures for efficiency (see prepDataStructs)
   arrayf _magIImg; arrayi _hIdxImg, _vIdxImg;
   vector<vectori> _hIdxs, _vIdxs; vectorf _scaleNorm;
@@ -75,13 +77,17 @@ private:
   void scoreBox( Box &box );
   void refineBox( Box &box );
   void createSegments( arrayf &I, arrayf &edges );
+  void createSegmentBoxes( arrayf &I );
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void EdgeBoxGenerator::generate( Boxes &boxes, arrayf &I, arrayf &edges )
 {
-  createSegments(I,edges);prepDataStructs(I); scoreAllBoxes(boxes);
+  createSegments(I,edges);
+  // createSegmentBoxes(I);
+  prepDataStructs(I); 
+  scoreAllBoxes(boxes);
 }
 
 void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
@@ -89,20 +95,20 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
     int c, r, j; h=I._h; w=I._w;
     vectori _R, _C;
     
-//     w=w+2;
-//     h=h+2;
-// 
-//     _segIds.init(h,w);
-//     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
-//         if( c==0 || r==0 || c==w-1 || r==h-1)
-//             _segIds.val(c,r)=-1;
-//         else {
-//             _segIds.val(c,r)=int(I.val(c-1,r-1));
-//             if (I.val(c-1,r-1) > _segCnt)
-//                 _segCnt = int(I.val(c-1,r-1));
-//         }
-//     }
-//     _segCnt++; // because we need to count the 0 id segments
+    // w=w+2;
+    // h=h+2;
+
+    // _segIds.init(h,w);
+    // for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
+    //     if( c==0 || r==0 || c==w-1 || r==h-1)
+    //         _segIds.val(c,r)=-1;
+    //     else {
+    //         _segIds.val(c,r)=int(I.val(c-1,r-1));
+    //         if (I.val(c-1,r-1) > _segCnt)
+    //             _segCnt = int(I.val(c-1,r-1));
+    //     }
+    // }
+    // _segCnt++; // because we need to count the 0 id segments
     
     _segIds.init(h,w);
        for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
@@ -199,6 +205,53 @@ void EdgeBoxGenerator::prepDataStructs( arrayf &I )
   for( i=0; i<n; i++ ) _sDone.val(0,i)=-1; _sId=0;
 }
 
+void EdgeBoxGenerator::createSegmentBoxes( arrayf &I )
+{
+  int c, r, j; h=I._h; w=I._w;
+
+  _segmentBoxes.resize(_segCnt);
+
+  typedef struct { int top, bottom, left, right; } myBox;
+  std::vector<myBox> tmpBoxes;
+  tmpBoxes.resize(_segCnt);
+  vectori alreadyDone;
+  alreadyDone.resize(_segCnt,0);
+
+  for( c=0; c<w; c++ ) for( r=0; r<h; r++ ){
+    j=_segIds.val(c,r);
+    
+    if (alreadyDone[j]==0){
+      tmpBoxes[j].top = r;
+      tmpBoxes[j].bottom = r+1;
+      tmpBoxes[j].left = c;
+      tmpBoxes[j].right = c+1;
+      alreadyDone[j] = 1;
+    }
+    else {
+      if ( c < tmpBoxes[j].left ) {
+        tmpBoxes[j].left = c;
+      }
+      if ( c >= tmpBoxes[j].right ) {
+        tmpBoxes[j].right = c+1;
+      }
+      if ( r < tmpBoxes[j].top ) {
+        tmpBoxes[j].top = r;
+      }
+      if ( r >= tmpBoxes[j].bottom ) {
+        tmpBoxes[j].bottom = r+1;
+      }
+    }
+  }
+
+  for (int i=0; i<_segCnt; i++){
+    _segmentBoxes[i].c = tmpBoxes[i].left;
+    _segmentBoxes[i].r = tmpBoxes[i].top;
+    _segmentBoxes[i].w = tmpBoxes[i].right - tmpBoxes[i].left;
+    _segmentBoxes[i].h = tmpBoxes[i].bottom - tmpBoxes[i].top;
+    _segmentBoxes[i].s = _segMag[i];
+  }
+}
+
 void EdgeBoxGenerator::scoreBox( Box &box )
 {
   int i, j, k, q, bh, bw, r0, c0, r1, c1, r0m, r1m, c0m, c1m;
@@ -209,7 +262,7 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   r1=clamp(box.r+box.h,0,h-1); r0=box.r=clamp(box.r,0,h-1);
   c1=clamp(box.c+box.w,0,w-1); c0=box.c=clamp(box.c,0,w-1);
   bh=box.h=r1-box.r; bw=box.w=c1-box.c; 
-//   bw/=2;bh/=2; 
+  // bw/=2;bh/=2; 
 
   float v = _segIImg.val(c0,r0) + _segIImg.val(c1+1,r1+1)
     - _segIImg.val(c1+1,r0) - _segIImg.val(c0,r1+1);
@@ -240,36 +293,36 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   }
   
   // follow connected paths and set weights accordingly (w=0 means remove)
-  for( i=0; i<n; i++ ) {
-    float w=sDist[i]; j=sIds[i];
+  // for( i=0; i<n; i++ ) {
+  //   float w=sDist[i]; j=sIds[i];
+  //   for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
+  //     q=_segAffIdx[j][k];
+  //     float wq=max(w,_segAff[j][k]); // because big segAff means big difference
+  //     if( sDone[q]==sId ) {
+  //       if( wq<sDist[sMap[q]] ) { sDist[sMap[q]]=wq; i=min(i,sMap[q]-1); }
+  //     } 
+  //     else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
+  //       sIds[n]=q; sDist[n]=wq; sDone[q]=sId; sMap[q]=n++;
+  //     }
+  //   }
+  // }
+  
+  // for ( i=0; i<n; i++ ) {
+  //     sWts[i] = 1-sDist[i];
+  // }
+ 
+    for( i=0; i<n; i++ ) {
+    float w=sWts[i]; j=sIds[i];
     for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
-      q=_segAffIdx[j][k];
-      float wq=max(w,_segAff[j][k]); // because big segAff means big difference
+      q=_segAffIdx[j][k]; float wq=w*(1-_segAff[j][k]);
+      if( wq<.05f ) continue; // short circuit for efficiency
       if( sDone[q]==sId ) {
-        if( wq<sDist[sMap[q]] ) { sDist[sMap[q]]=wq; i=min(i,sMap[q]-1); }
-      } 
-      else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
-        sIds[n]=q; sDist[n]=wq; sDone[q]=sId; sMap[q]=n++;
+        if( wq>sWts[sMap[q]] ) { sWts[sMap[q]]=wq; i=min(i,sMap[q]-1); }    //?????
+      } else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
+        sIds[n]=q; sWts[n]=wq; sDone[q]=sId; sMap[q]=n++;
       }
     }
   }
-  
-  for ( i=0; i<n; i++ ) {
-      sWts[i] = 1-sDist[i];
-  }
- 
-//     for( i=0; i<n; i++ ) {
-//     float w=sWts[i]; j=sIds[i];
-//     for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
-//       q=_segAffIdx[j][k]; float wq=w*(1-_segAff[j][k]);
-//       if( wq<.05f ) continue; // short circuit for efficiency
-//       if( sDone[q]==sId ) {
-//         if( wq>sWts[sMap[q]] ) { sWts[sMap[q]]=wq; i=min(i,sMap[q]-1); }    //?????
-//       } else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
-//         sIds[n]=q; sWts[n]=wq; sDone[q]=sId; sMap[q]=n++;
-//       }
-//     }
-//   }
   
   // finally remove segments connected to boundaries
   for( i=0; i<n; i++ ) {
