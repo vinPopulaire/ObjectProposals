@@ -7,6 +7,7 @@
 #include "math.h"
 #include <algorithm>
 #include <vector>
+#include <map>
 using namespace std;
 #define PI 3.14159265f
 int clamp( int v, int a, int b ) { return v<a?a:v>b?b:v; }
@@ -31,11 +32,84 @@ typedef Array<int> arrayi;
 
 // bounding box data structures and routines
 typedef struct { int c, r, w, h; float s; } Box;
+typedef struct { int top, bottom, left, right; float s; } myBox;
 typedef vector<Box> Boxes;
 bool boxesCompare( const Box &a, const Box &b ) { return a.s<b.s; }
 float boxesOverlap( Box &a, Box &b );
 void boxesNms( Boxes &boxes, float thr, int maxBoxes );
 
+struct pairs {
+  pairs(int segId, float weight) : segId(segId), weight(weight){}
+  int segId;
+  float weight;
+};
+bool pairsCompare( const pairs &a, const pairs &b ) { return a.weight<b.weight; }
+
+//disjoint set class
+typedef struct {
+  int rank;
+  int p;
+  myBox boundingBox;
+} uni_elt;
+
+class universe {
+public:
+  universe(int elements);
+  ~universe();
+  int find(int x);
+  void join(int x, int y, float weight);
+  myBox size(int x) const {return elts[x].boundingBox; }
+  int num_sets() const {return num; }
+
+private:
+  uni_elt *elts;
+  int num;
+};
+
+universe::universe(int elements) {
+  elts = new uni_elt[elements];
+  num = elements;
+  for (int i=0; i<elements; i++) {
+    elts[i].rank = 0;
+    elts[i].p = i;
+  }
+}
+
+universe::~universe() {
+  delete [] elts;
+}
+
+int universe::find(int x) {
+  int y = x;
+  while (y != elts[y].p)
+    y = elts[y].p;
+  elts[x].p = y;
+  return y;
+}
+
+void universe::join(int x, int y, float weight) {
+  if (elts[x].rank > elts[y].rank) {
+    elts[y].p = x;
+    elts[x].boundingBox.top = min(elts[x].boundingBox.top,elts[y].boundingBox.top);
+    elts[x].boundingBox.bottom = max(elts[x].boundingBox.bottom,elts[y].boundingBox.bottom);
+    elts[x].boundingBox.left = min(elts[x].boundingBox.left,elts[y].boundingBox.left);
+    elts[x].boundingBox.right = max(elts[x].boundingBox.right,elts[y].boundingBox.right);
+    int area = (elts[x].boundingBox.bottom-elts[x].boundingBox.top)*(elts[x].boundingBox.right-elts[x].boundingBox.left);
+    elts[x].boundingBox.s = max(max(elts[x].boundingBox.s,elts[y].boundingBox.s),(area*weight));
+  }
+  else {
+    elts[x].p = y;
+    elts[y].boundingBox.top = min(elts[x].boundingBox.top,elts[y].boundingBox.top);
+    elts[y].boundingBox.bottom = max(elts[x].boundingBox.bottom,elts[y].boundingBox.bottom);
+    elts[y].boundingBox.left = min(elts[x].boundingBox.left,elts[y].boundingBox.left);
+    elts[y].boundingBox.right = max(elts[x].boundingBox.right,elts[y].boundingBox.right);
+    int area = (elts[y].boundingBox.bottom-elts[y].boundingBox.top)*(elts[y].boundingBox.right-elts[y].boundingBox.left);
+    elts[y].boundingBox.s = max(max(elts[x].boundingBox.s,elts[y].boundingBox.s),(area*weight));
+    if (elts[x].rank == elts[y].rank)
+      elts[y].rank++;
+  }
+  num--;
+}
 
 // main class for generating edge boxes
 class EdgeBoxGenerator
@@ -59,9 +133,8 @@ private:
   arrayf E1;
   vector<vectorf> _segAff;          // segment affinities
   vector<vectori> _segAffIdx;       // segment neighbors
+  vector<myBox> _segmentBoxes;
 
-  Boxes _segmentBoxes;
-  
   vectori _segR, _segC;             // segment lower-right pixel
   // data structures for efficiency (see prepDataStructs)
   arrayf _magIImg; arrayi _hIdxImg, _vIdxImg;
@@ -85,7 +158,7 @@ private:
 void EdgeBoxGenerator::generate( Boxes &boxes, arrayf &I, arrayf &edges )
 {
   createSegments(I,edges);
-  // createSegmentBoxes(I);
+  createSegmentBoxes(I);
   prepDataStructs(I); 
   scoreAllBoxes(boxes);
 }
@@ -211,9 +284,6 @@ void EdgeBoxGenerator::createSegmentBoxes( arrayf &I )
 
   _segmentBoxes.resize(_segCnt);
 
-  typedef struct { int top, bottom, left, right; } myBox;
-  std::vector<myBox> tmpBoxes;
-  tmpBoxes.resize(_segCnt);
   vectori alreadyDone;
   alreadyDone.resize(_segCnt,0);
 
@@ -221,34 +291,27 @@ void EdgeBoxGenerator::createSegmentBoxes( arrayf &I )
     j=_segIds.val(c,r);
     
     if (alreadyDone[j]==0){
-      tmpBoxes[j].top = r;
-      tmpBoxes[j].bottom = r+1;
-      tmpBoxes[j].left = c;
-      tmpBoxes[j].right = c+1;
+      _segmentBoxes[j].top = r;
+      _segmentBoxes[j].bottom = r+1;
+      _segmentBoxes[j].left = c;
+      _segmentBoxes[j].right = c+1;
+      _segmentBoxes[j].s = _segMag[j];
       alreadyDone[j] = 1;
     }
     else {
-      if ( c < tmpBoxes[j].left ) {
-        tmpBoxes[j].left = c;
+      if ( c < _segmentBoxes[j].left ) {
+        _segmentBoxes[j].left = c;
       }
-      if ( c >= tmpBoxes[j].right ) {
-        tmpBoxes[j].right = c+1;
+      if ( c >= _segmentBoxes[j].right ) {
+        _segmentBoxes[j].right = c+1;
       }
-      if ( r < tmpBoxes[j].top ) {
-        tmpBoxes[j].top = r;
+      if ( r < _segmentBoxes[j].top ) {
+        _segmentBoxes[j].top = r;
       }
-      if ( r >= tmpBoxes[j].bottom ) {
-        tmpBoxes[j].bottom = r+1;
+      if ( r >= _segmentBoxes[j].bottom ) {
+        _segmentBoxes[j].bottom = r+1;
       }
     }
-  }
-
-  for (int i=0; i<_segCnt; i++){
-    _segmentBoxes[i].c = tmpBoxes[i].left;
-    _segmentBoxes[i].r = tmpBoxes[i].top;
-    _segmentBoxes[i].w = tmpBoxes[i].right - tmpBoxes[i].left;
-    _segmentBoxes[i].h = tmpBoxes[i].bottom - tmpBoxes[i].top;
-    _segmentBoxes[i].s = _segMag[i];
   }
 }
 
@@ -293,36 +356,34 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   }
   
   // follow connected paths and set weights accordingly (w=0 means remove)
-  // for( i=0; i<n; i++ ) {
-  //   float w=sDist[i]; j=sIds[i];
-  //   for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
-  //     q=_segAffIdx[j][k];
-  //     float wq=max(w,_segAff[j][k]); // because big segAff means big difference
-  //     if( sDone[q]==sId ) {
-  //       if( wq<sDist[sMap[q]] ) { sDist[sMap[q]]=wq; i=min(i,sMap[q]-1); }
-  //     } 
-  //     else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
-  //       sIds[n]=q; sDist[n]=wq; sDone[q]=sId; sMap[q]=n++;
-  //     }
-  //   }
-  // }
+
+  vector<pairs> segmentsInside;
+
+  for( i=0; i<n; i++ ) {
+    float w=sDist[i]; j=sIds[i];
+    for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
+      q=_segAffIdx[j][k];
+      float wq=max(w,_segAff[j][k]); // because big segAff means big difference
+      if( sDone[q]==sId ) {
+        if( wq<sDist[sMap[q]] ) { sDist[sMap[q]]=wq; i=min(i,sMap[q]-1); }
+      } 
+      else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
+        sIds[n]=q; sDist[n]=wq; sWts[n]=0; sDone[q]=sId; sMap[q]=n++;
+        segmentsInside.push_back(pairs(q,wq));
+      }
+    }
+  }
+
+  sort(segmentsInside.rbegin(),segmentsInside.rend(),pairsCompare);
+
+  for (int i=0; i<segmentsInside.size(); i++)
+    mexPrintf("%d %f \n",segmentsInside[i].segId, segmentsInside[i].weight);
+  mexPrintf("\n");
   
   // for ( i=0; i<n; i++ ) {
   //     sWts[i] = 1-sDist[i];
   // }
- 
-    for( i=0; i<n; i++ ) {
-    float w=sWts[i]; j=sIds[i];
-    for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
-      q=_segAffIdx[j][k]; float wq=w*(1-_segAff[j][k]);
-      if( wq<.05f ) continue; // short circuit for efficiency
-      if( sDone[q]==sId ) {
-        if( wq>sWts[sMap[q]] ) { sWts[sMap[q]]=wq; i=min(i,sMap[q]-1); }    //?????
-      } else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
-        sIds[n]=q; sWts[n]=wq; sDone[q]=sId; sMap[q]=n++;
-      }
-    }
-  }
+
   
   // finally remove segments connected to boundaries
   for( i=0; i<n; i++ ) {
@@ -381,12 +442,18 @@ void EdgeBoxGenerator::scoreAllBoxes( Boxes &boxes )
     }
   }
 
+  boxes.resize(0);
+  Box b; b.r=106; b.c=271; b.h = 50; b.w= 19;
+  boxes.push_back(b);
+  b.r=465; b.c=142; b.h = 32; b.w= 67;
+  boxes.push_back(b);
+
   // score all boxes, refine top candidates, perform nms
   int i, k=0, m = int(boxes.size());
   for( i=0; i<m; i++ ) {
     scoreBox(boxes[i]);
     if( !boxes[i].s ) continue; k++;
-    refineBox(boxes[i]);
+    //refineBox(boxes[i]);
   }
   sort(boxes.rbegin(),boxes.rend(),boxesCompare);
   boxes.resize(k); boxesNms(boxes,_beta,_maxBoxes);

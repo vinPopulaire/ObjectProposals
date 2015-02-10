@@ -12,9 +12,7 @@ opts.maxBoxes = 1e4;  % max number of boxes to detect
 % %% show evaluation results (using pre-defined or interactive boxes)
 % gt=[122 248 92 65; 193 82 71 53; 410 237 101 81; 204 160 114 95; ...
 %   9 185 86 90; 389 93 120 117; 253 103 107 57; 81 140 91 63; 77 100 107 63; 309 164 191 133];
-%  gt = bbs(1:16,1:4);
-% % gt = bbs(1,1:4);
-% % gt = bbs(50:70,1:4);
+% % gt = bbs(1:16,1:4);
 % if(0), gt='Please select an object box.'; disp(gt); figure(1); imshow(I);
 %   title(gt); [~,gt]=imRectRot('rotate',0); gt=gt.getPos(); end
 % gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
@@ -37,9 +35,9 @@ edgedir = 'boxes\VOCdevkit\Edges\Edges\';
 
 %%% to change
 testImage = '000001';
-figure(1);
+f = figure(1);
 
-bbs=segmentBoxes([txtdir '' testImage '.txt'],[edgedir '' testImage '.txt'],testImage,opts);
+tic, bbs=segmentBoxes([txtdir '' testImage '.txt'],[edgedir '' testImage '.txt'],testImage,opts); toc
 
 split='val'; data=boxesData('split',split);
 gt = data.gt;
@@ -56,10 +54,22 @@ bbGt('showRes',original,gtRes,dtRes(dtRes(:,6)==1,:));
 title(['green=matched gt' char(10) 'red=missed gt' char(10) 'dashed-green=matched detect']);
 
 %%% top scoring boxes
-gt = bbs(1:10,1:4);
+gt = bbs(1:2,1:4);
 
 gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
 original = imread([imgdir '' testImage '.jpg']);
 subplot(1,2,2);
 bbGt('showRes',original,gtRes,dtRes(dtRes(:,6)==1,:));
-title('10 top scoring boxes');
+title('8 top scoring boxes');
+
+% %%% to change
+% print -dpng 000011;
+
+% figure(2);
+% gt = bbs(1:2,1:4);
+% gt(1,:) = bbs(1,1:4);
+% gt(2,:) = bbs(6,1:4);
+% gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
+% original = imread([imgdir '' testImage '.jpg']);
+% bbGt('showRes',original,gtRes,dtRes(dtRes(:,6)==1,:));
+% title('8 top scoring boxes');
