@@ -168,28 +168,28 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
     int c, r, j; h=I._h; w=I._w;
     vectori _R, _C;
     
-    // w=w+2;
-    // h=h+2;
+    w=w+2;
+    h=h+2;
 
-    // _segIds.init(h,w);
-    // for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
-    //     if( c==0 || r==0 || c==w-1 || r==h-1)
-    //         _segIds.val(c,r)=-1;
-    //     else {
-    //         _segIds.val(c,r)=int(I.val(c-1,r-1));
-    //         if (I.val(c-1,r-1) > _segCnt)
-    //             _segCnt = int(I.val(c-1,r-1));
-    //     }
-    // }
-    // _segCnt++; // because we need to count the 0 id segments
-    
     _segIds.init(h,w);
-       for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
-        _segIds.val(c,r)=int(I.val(c,r));
-        if (I.val(c,r) > _segCnt)
-            _segCnt = int(I.val(c,r));
+    for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
+        if( c==0 || r==0 || c==w-1 || r==h-1)
+            _segIds.val(c,r)=-1;
+        else {
+            _segIds.val(c,r)=int(I.val(c-1,r-1));
+            if (I.val(c-1,r-1) > _segCnt)
+                _segCnt = int(I.val(c-1,r-1));
+        }
     }
     _segCnt++; // because we need to count the 0 id segments
+    
+    // _segIds.init(h,w);
+    //    for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
+    //     _segIds.val(c,r)=int(I.val(c,r));
+    //     if (I.val(c,r) > _segCnt)
+    //         _segCnt = int(I.val(c,r));
+    // }
+    // _segCnt++; // because we need to count the 0 id segments
      
     // segments affinities
     _segAff.resize(_segCnt); _segAffIdx.resize(_segCnt);
@@ -280,7 +280,7 @@ void EdgeBoxGenerator::prepDataStructs( arrayf &I )
 
 void EdgeBoxGenerator::createSegmentBoxes( arrayf &I )
 {
-  int c, r, j; h=I._h; w=I._w;
+  int c, r, j;
 
   _segmentBoxes.resize(_segCnt);
 
@@ -288,7 +288,8 @@ void EdgeBoxGenerator::createSegmentBoxes( arrayf &I )
   alreadyDone.resize(_segCnt,0);
 
   for( c=0; c<w; c++ ) for( r=0; r<h; r++ ){
-    j=_segIds.val(c,r);
+    
+    if (j=_segIds.val(c,r)>=0){
     
     if (alreadyDone[j]==0){
       _segmentBoxes[j].top = r;
@@ -311,6 +312,8 @@ void EdgeBoxGenerator::createSegmentBoxes( arrayf &I )
       if ( r >= _segmentBoxes[j].bottom ) {
         _segmentBoxes[j].bottom = r+1;
       }
+    }
+
     }
   }
 }
@@ -357,32 +360,28 @@ void EdgeBoxGenerator::scoreBox( Box &box )
   
   // follow connected paths and set weights accordingly (w=0 means remove)
 
-  vector<pairs> segmentsInside;
+  // vector<pairs> segmentsInside;
 
-  for( i=0; i<n; i++ ) {
-    float w=sDist[i]; j=sIds[i];
-    for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
-      q=_segAffIdx[j][k];
-      float wq=max(w,_segAff[j][k]); // because big segAff means big difference
-      if( sDone[q]==sId ) {
-        if( wq<sDist[sMap[q]] ) { sDist[sMap[q]]=wq; i=min(i,sMap[q]-1); }
-      } 
-      else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
-        sIds[n]=q; sDist[n]=wq; sWts[n]=0; sDone[q]=sId; sMap[q]=n++;
-        segmentsInside.push_back(pairs(q,wq));
-      }
-    }
-  }
-
-  sort(segmentsInside.rbegin(),segmentsInside.rend(),pairsCompare);
-
-  for (int i=0; i<segmentsInside.size(); i++)
-    mexPrintf("%d %f \n",segmentsInside[i].segId, segmentsInside[i].weight);
-  mexPrintf("\n");
-  
-  // for ( i=0; i<n; i++ ) {
-  //     sWts[i] = 1-sDist[i];
+  // for( i=0; i<n; i++ ) {
+  //   float w=sDist[i]; j=sIds[i];
+  //   for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
+  //     q=_segAffIdx[j][k];
+  //     float wq=max(w,_segAff[j][k]); // because big segAff means big difference
+  //     if( sDone[q]==sId ) {
+  //       if( wq<sDist[sMap[q]] ) { sDist[sMap[q]]=wq; i=min(i,sMap[q]-1); }
+  //     } 
+  //     else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
+  //       sIds[n]=q; sDist[n]=wq; sWts[n]=0; sDone[q]=sId; sMap[q]=n++;
+  //       segmentsInside.push_back(pairs(q,wq));
+  //     }
+  //   }
   // }
+
+  // sort(segmentsInside.rbegin(),segmentsInside.rend(),pairsCompare);
+  
+  for ( i=0; i<n; i++ ) {
+      sWts[i] = 1-sDist[i];
+  }
 
   
   // finally remove segments connected to boundaries
@@ -442,18 +441,18 @@ void EdgeBoxGenerator::scoreAllBoxes( Boxes &boxes )
     }
   }
 
-  boxes.resize(0);
-  Box b; b.r=106; b.c=271; b.h = 50; b.w= 19;
-  boxes.push_back(b);
-  b.r=465; b.c=142; b.h = 32; b.w= 67;
-  boxes.push_back(b);
+  // boxes.resize(0);
+  // Box b; b.r=106; b.c=271; b.h = 50; b.w= 19;
+  // boxes.push_back(b);
+  // b.r=465; b.c=142; b.h = 32; b.w= 67;
+  // boxes.push_back(b);
 
   // score all boxes, refine top candidates, perform nms
   int i, k=0, m = int(boxes.size());
   for( i=0; i<m; i++ ) {
     scoreBox(boxes[i]);
     if( !boxes[i].s ) continue; k++;
-    //refineBox(boxes[i]);
+    refineBox(boxes[i]);
   }
   sort(boxes.rbegin(),boxes.rend(),boxesCompare);
   boxes.resize(k); boxesNms(boxes,_beta,_maxBoxes);
