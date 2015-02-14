@@ -103,4 +103,6 @@ edges = single(edges);
 bbs=segmentBoxesMex(I,edges,o.alpha,o.beta,o.minScore,o.maxBoxes,...
   o.segmentMinMag,o.segmentMergeThr,o.clusterMinMag,...
   o.maxAspectRatio,o.minBoxArea,o.gamma,o.kappa);
+
+fclose all;
 end

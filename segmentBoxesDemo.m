@@ -33,11 +33,11 @@ imgdir = 'boxes\VOCdevkit\VOC2007\JPEGImages\';
 txtdir = 'boxes\VOCdevkit\Segments\Segments\';
 edgedir = 'boxes\VOCdevkit\Edges\Edges\';
 
-%%% to change
+%% to change
 testImage = '000001';
 f = figure(1);
 
-tic, bbs=segmentBoxes([txtdir '' testImage '.txt'],[edgedir '' testImage '.txt'],testImage,opts); toc
+tic, bbs=segmentBoxes([txtdir '' testImage '.txt'],[edgedir '' testImage '.txt'],testImage,opts); toc;
 
 split='val'; data=boxesData('split',split);
 gt = data.gt;
@@ -54,7 +54,7 @@ bbGt('showRes',original,gtRes,dtRes(dtRes(:,6)==1,:));
 title(['green=matched gt' char(10) 'red=missed gt' char(10) 'dashed-green=matched detect']);
 
 %%% top scoring boxes
-gt = bbs(1:2,1:4);
+gt = bbs(1:8,1:4);
 
 gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
 original = imread([imgdir '' testImage '.jpg']);
