@@ -87,6 +87,8 @@ function bbs = segmentBoxesImg( I, edges, ids, o )
 fin = fopen(I);
 if (strcmp(I,'peppers.txt') || strcmp(I,'dokimastiko.txt'))
     original = imread('peppers.png');
+elseif (strcmp(I,'test\testout.txt'))
+    original = imread('test\test.pgm');
 else
     original = imread(['C:\Users\Giorgos\Programming\ObjectProposals\boxes\VOCdevkit\VOC2007\JPEGImages\' ids '.jpg']);
 end

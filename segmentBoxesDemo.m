@@ -5,6 +5,26 @@ opts.beta  = .75;     % nms threshold for object proposals
 opts.minScore = .01;  % min score of boxes to detect
 opts.maxBoxes = 1e4;  % max number of boxes to detect
 
+%% test image
+% tic, bbs=segmentBoxes('test\testout.txt','test\testedges.txt','test',opts); toc % 'peppers' is the id of the image
+% figure(1);
+% 
+% gt = bbs(1:8,1:4);
+% if(0), gt='Please select an object box.'; disp(gt); figure(1); imshow(I);
+%   title(gt); [~,gt]=imRectRot('rotate',0); gt=gt.getPos(); end
+% gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
+% original = imread('test\test.pgm'); 
+% subplot(1,2,1);
+% bbGt('showRes',original,gtRes,dtRes(dtRes(:,6)==1,:));
+% title('green=matched gt  red=missed gt  dashed-green=matched detect');
+% 
+% original = imread('test\testseg.ppm'); 
+% subplot(1,2,2);
+% bbGt('showRes',original,gtRes,dtRes(dtRes(:,6)==1,:));
+% title('green=matched gt  red=missed gt  dashed-green=matched detect');
+
+
+
 %% detect Edge Box bounding box proposals (see segmentBoxes.m)
 
 % tic, bbs=segmentBoxes('peppers.txt','edges.txt','peppers',opts); toc % 'peppers' is the id of the image
@@ -32,6 +52,7 @@ opts.maxBoxes = 1e4;  % max number of boxes to detect
 imgdir = 'boxes\VOCdevkit\VOC2007\JPEGImages\';
 txtdir = 'boxes\VOCdevkit\Segments\Segments\';
 edgedir = 'boxes\VOCdevkit\Edges\Edges\';
+segmentdir = 'boxes\VOCdevkit\VerySegImages\PGMImages\';
 
 %% to change
 testImage = '000001';
@@ -49,7 +70,7 @@ gt = cell2mat(gt(1));
 
 gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
 original = imread([imgdir '' testImage '.jpg']);
-subplot(1,2,1);
+subplot(1,3,1);
 bbGt('showRes',original,gtRes,dtRes(dtRes(:,6)==1,:));
 title(['green=matched gt' char(10) 'red=missed gt' char(10) 'dashed-green=matched detect']);
 
@@ -58,7 +79,13 @@ gt = bbs(1:8,1:4);
 
 gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
 original = imread([imgdir '' testImage '.jpg']);
-subplot(1,2,2);
+subplot(1,3,2);
+bbGt('showRes',original,gtRes,dtRes(dtRes(:,6)==1,:));
+title('8 top scoring boxes');
+
+gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
+original = imread([segmentdir '' testImage '.pgm']);
+subplot(1,3,3);
 bbGt('showRes',original,gtRes,dtRes(dtRes(:,6)==1,:));
 title('8 top scoring boxes');
 
