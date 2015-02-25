@@ -10,8 +10,6 @@ opts.maxBoxes = 1e4;  % max number of boxes to detect
 % figure(1);
 % 
 % gt = bbs(1:8,1:4);
-% if(0), gt='Please select an object box.'; disp(gt); figure(1); imshow(I);
-%   title(gt); [~,gt]=imRectRot('rotate',0); gt=gt.getPos(); end
 % gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
 % original = imread('test\test.pgm'); 
 % subplot(1,2,1);
@@ -100,3 +98,5 @@ title('8 top scoring boxes');
 % original = imread([imgdir '' testImage '.jpg']);
 % bbGt('showRes',original,gtRes,dtRes(dtRes(:,6)==1,:));
 % title('8 top scoring boxes');
+
+fclose all;
