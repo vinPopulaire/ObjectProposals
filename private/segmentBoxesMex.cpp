@@ -36,7 +36,7 @@ typedef struct { int top, bottom, left, right;} myBox;
 typedef vector<Box> Boxes;
 bool boxesCompare( const Box &a, const Box &b ) { return a.s<b.s; }
 float boxesOverlap( Box &a, Box &b );
-void boxesNms( Boxes &boxes, float thr, int maxBoxes );
+void boxesNms( Boxes &boxes, float thr, float eta, int maxBoxes );
 
 struct pairs {
   pairs(int segId, float weight) : segId(segId), weight(weight){}
@@ -55,7 +55,7 @@ typedef struct {
 
 class universe {
 public:
-  universe(int elements);
+  universe(int elements, vector<myBox> _segmentBoxes);
   ~universe();
   float getMax();
   void updateWeights(int segId, float weight);
@@ -64,32 +64,36 @@ public:
   void join(int x, int y);
   int computeArea(myBox boundingBox);
   myBox updateBoundingBox(myBox a, myBox b);
-  void myreset(vector<myBox> _segmentBoxes);
+  void resetSegment(int x);
+  void resetMax();
   int num_sets() const {return num; }
 
 private:
   uni_elt *elts;
   int num;
   float maximumScore;
+  vector<myBox> segmentBoxes;
 };
 
-universe::universe(int elements) {
+universe::universe(int elements, vector<myBox> _segmentBoxes) {
   elts = new uni_elt[elements];
   num = elements;
+  segmentBoxes = _segmentBoxes;
 }
 
 universe::~universe() {
   delete [] elts;
 }
 
-void universe::myreset(vector<myBox> _segmentBoxes){
+void universe::resetSegment(int x){
+  elts[x].rank = 0;
+  elts[x].p = x;
+  elts[x].boundingBox = segmentBoxes[x];
+  elts[x].weight = 0;
+}
+
+void universe::resetMax(){
   maximumScore = 0;
-  for (int i=0; i<num; i++) {
-    elts[i].rank = 0;
-    elts[i].p = i;
-    elts[i].boundingBox = _segmentBoxes[i];
-    elts[i].weight = 0;
-  }
 }
 
 float universe::getMax() {
@@ -151,7 +155,7 @@ class SegmentBoxGenerator
 {
 public:
   // method parameters (must be manually set)
-  float _alpha, _beta, _minScore; int _maxBoxes;
+  float _alpha, _beta, _eta, _minScore; int _maxBoxes;
   float _edgeMinMag, _edgeMergeThr, _clusterMinMag;
   float _maxAspectRatio, _minBoxArea, _gamma, _kappa;
 
@@ -340,7 +344,7 @@ void SegmentBoxGenerator::createSegmentBoxes( arrayf &I )
       }
     }
   }
-  u = new universe(_segCnt);
+  u = new universe(_segCnt, _segmentBoxes);
 }
 
 void SegmentBoxGenerator::scoreBox( Box &box )
@@ -378,9 +382,6 @@ void SegmentBoxGenerator::scoreBox( Box &box )
   for( i=rs; i<=re; i++ ) if( (j=_vIdxs[c1][i])>=0 && sDone[j]!=sId ) {
     sIds[n]=j; sWts[n]=1; sDist[n]=0; sDone[j]=sId; sMap[j]=n++;
   }
-
-  //reset the universe
-  u->myreset(_segmentBoxes);
   
   // follow connected paths and set weights accordingly (w=0 means remove)
   vector<pairs> segmentsInside;
@@ -395,9 +396,12 @@ void SegmentBoxGenerator::scoreBox( Box &box )
       } 
       else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
         sIds[n]=q; sDist[n]=wq; sWts[n]=0; sDone[q]=sId; sMap[q]=n++;
+        u->resetSegment(q);
       }
     }
   }
+
+  u->resetMax();
 
   for ( i=0; i<n; i++ ) {
     if (sDist[i]>0) {
@@ -498,7 +502,7 @@ void SegmentBoxGenerator::scoreAllBoxes( Boxes &boxes )
     refineBox(boxes[i]);
   }
   sort(boxes.rbegin(),boxes.rend(),boxesCompare);
-  boxes.resize(k); boxesNms(boxes,_beta,_maxBoxes);
+  boxes.resize(k); boxesNms(boxes,_beta,_eta,_maxBoxes);
 }
 
 float boxesOverlap( Box &a, Box &b ) {
@@ -512,20 +516,21 @@ float boxesOverlap( Box &a, Box &b ) {
   return areaij / (areai + areaj - areaij);
 }
 
-void boxesNms( Boxes &boxes, float thr, int maxBoxes )
+void boxesNms( Boxes &boxes, float thr, float eta, int maxBoxes )
 {
   sort(boxes.rbegin(),boxes.rend(),boxesCompare);
   if( thr>.99 ) return; const int nBin=10000;
   const float step=1/thr, lstep=log(step);
   vector<Boxes> kept; kept.resize(nBin+1);
-  int i=0, j, k, n=(int) boxes.size(), m=0, b;
+  int i=0, j, k, n=(int) boxes.size(), m=0, b, d=1;
   while( i<n && m<maxBoxes ) {
     b = boxes[i].w*boxes[i].h; bool keep=1;
-    b = clamp(int(ceil(log(float(b))/lstep)),1,nBin-1);
-    for( j=b-1; j<=b+1; j++ )
+    b = clamp(int(ceil(log(float(b))/lstep)),d,nBin-d);
+    for( j=b-d; j<=b+d; j++ )
       for( k=0; k<kept[j].size(); k++ ) if( keep )
         keep = boxesOverlap( boxes[i], kept[j][k] ) <= thr;
     if(keep) { kept[b].push_back(boxes[i]); m++; } i++;
+    if(keep && eta<1 && thr>.5) { thr*=eta; d=ceil(log(1/thr)/lstep); }
   }
   boxes.resize(m); i=0;
   for( j=0; j<nBin; j++ )
@@ -540,7 +545,7 @@ void boxesNms( Boxes &boxes, float thr, int maxBoxes )
 void mexFunction( int nl, mxArray *pl[], int nr, const mxArray *pr[] )
 {
   // check and get inputs
-  if(nr != 13) mexErrMsgTxt("Thirteen inputs required.");
+  if(nr != 14) mexErrMsgTxt("Fourteen inputs required.");
   if(nl > 2) mexErrMsgTxt("At most two outputs expected.");
   if(mxGetClassID(pr[0])!=mxSINGLE_CLASS) mexErrMsgTxt("I must be a float*");
   arrayf I; I._x = (float*) mxGetData(pr[0]);
@@ -555,15 +560,16 @@ void mexFunction( int nl, mxArray *pl[], int nr, const mxArray *pr[] )
   
   segmentBoxGen._alpha = float(mxGetScalar(pr[2]));
   segmentBoxGen._beta = float(mxGetScalar(pr[3]));
-  segmentBoxGen._minScore = float(mxGetScalar(pr[4]));
-  segmentBoxGen._maxBoxes = int(mxGetScalar(pr[5]));
-  segmentBoxGen._edgeMinMag = float(mxGetScalar(pr[6]));
-  segmentBoxGen._edgeMergeThr = float(mxGetScalar(pr[7]));
-  segmentBoxGen._clusterMinMag = float(mxGetScalar(pr[8]));
-  segmentBoxGen._maxAspectRatio = float(mxGetScalar(pr[9]));
-  segmentBoxGen._minBoxArea = float(mxGetScalar(pr[10]));
-  segmentBoxGen._gamma = float(mxGetScalar(pr[11]));
-  segmentBoxGen._kappa = float(mxGetScalar(pr[12]));
+  segmentBoxGen._eta = float(mxGetScalar(pr[4]));
+  segmentBoxGen._minScore = float(mxGetScalar(pr[5]));
+  segmentBoxGen._maxBoxes = int(mxGetScalar(pr[6]));
+  segmentBoxGen._edgeMinMag = float(mxGetScalar(pr[7]));
+  segmentBoxGen._edgeMergeThr = float(mxGetScalar(pr[8]));
+  segmentBoxGen._clusterMinMag = float(mxGetScalar(pr[9]));
+  segmentBoxGen._maxAspectRatio = float(mxGetScalar(pr[10]));
+  segmentBoxGen._minBoxArea = float(mxGetScalar(pr[11]));
+  segmentBoxGen._gamma = float(mxGetScalar(pr[12]));
+  segmentBoxGen._kappa = float(mxGetScalar(pr[13]));
    
   segmentBoxGen.generate( boxes, I, edges );
 
