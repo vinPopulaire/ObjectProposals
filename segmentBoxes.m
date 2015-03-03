@@ -2,7 +2,7 @@ function bbs = segmentBoxes( I,edges, ids, varargin )
 % Generate Edge Boxes object proposals in given image(s).
 %
 % Compute Edge Boxes object proposals as described in:
-%  C. Lawrence Zitnick and Piotr Dollár
+%  C. Lawrence Zitnick and Piotr Doll?r
 %  "Edge Boxes: Locating Object Proposals from Edges", ECCV 2014.
 % The proposal boxes are fast to compute and give state-of-the-art recall.
 % Please cite the above paper if you end up using the code.
@@ -87,10 +87,10 @@ function bbs = segmentBoxesImg( I, edges, ids, o )
 fin = fopen(I);
 if (strcmp(I,'peppers.txt') || strcmp(I,'dokimastiko.txt'))
     original = imread('peppers.png');
-elseif (strcmp(I,'test\testout.txt'))
-    original = imread('test\test.pgm');
+elseif (strcmp(I,'test/testout.txt'))
+    original = imread('test/test.pgm');
 else
-    original = imread(['C:\Users\Giorgos\Programming\ObjectProposals\boxes\VOCdevkit\VOC2007\JPEGImages\' ids '.jpg']);
+    original = imread(['boxes/VOCdevkit/VOC2007/JPEGImages/' ids '.jpg']);
 end
 [height,width,color] = size(original);
 I = fscanf(fin,'%d',[width,height]); %dn kserw giati i fscanf leitourgei etsi. Mallon giati fscanf populates A in column order

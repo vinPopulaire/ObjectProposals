@@ -164,7 +164,6 @@ private:
   int _segCnt;                      // total segment count
   arrayi _segIds;                   // segment ids (-1/0 means no segment)
   vectorf _segMag;                  // segment edge magnitude sums
-  arrayf E1;
   vector<vectorf> _segAff;          // segment affinities
   vector<vectori> _segAffIdx;       // segment neighbors
   vector<myBox> _segmentBoxes;
