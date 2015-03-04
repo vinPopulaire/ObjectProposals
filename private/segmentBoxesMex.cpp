@@ -45,6 +45,10 @@ struct pairs {
 };
 bool pairsCompare( const pairs &a, const pairs &b ) { return a.weight<b.weight; }
 
+// struct boxPairs {
+//   boxPairs()
+// };
+
 //disjoint set class
 typedef struct {
   int rank;
@@ -58,6 +62,7 @@ public:
   universe(int elements, vector<myBox> _segmentBoxes);
   ~universe();
   float getMax();
+  Box getBestBoundingBox();
   void updateWeights(int segId, float weight);
   void updateMax(int segId);
   int find(int x);
@@ -73,6 +78,7 @@ private:
   int num;
   float maximumScore;
   vector<myBox> segmentBoxes;
+  myBox bestBoundingBox;
 };
 
 universe::universe(int elements, vector<myBox> _segmentBoxes) {
@@ -100,10 +106,23 @@ float universe::getMax() {
   return maximumScore;
 }
 
+Box universe::getBestBoundingBox(){
+  Box x;
+  x.c = bestBoundingBox.left;
+  x.r = bestBoundingBox.top;
+  x.w = bestBoundingBox.right - bestBoundingBox.left;
+  x.h = bestBoundingBox.bottom - bestBoundingBox.top;
+  x.s = getMax();
+  return x;
+}
+
 void universe::updateMax(int segId) {
   int area = computeArea(elts[segId].boundingBox);
   float score = area*elts[segId].weight;
-  maximumScore = max(maximumScore,score);
+  if (maximumScore<score){
+    maximumScore = score;
+    bestBoundingBox = elts[segId].boundingBox;
+  }
 }
 
 void universe::updateWeights(int segId, float weight) {
@@ -408,11 +427,8 @@ void SegmentBoxGenerator::scoreBox( Box &box )
       segmentsInside.push_back(pairs(sIds[i],sDist[i]));
       u->updateWeights(sIds[i],sDist[i]);
       u->updateMax(sIds[i]);
-      // u->updateMax(sIds[i], 1);
-      // mexPrintf("%d %f\n",sIds[i],sDist[i]);
     }
   }
-  // mexPrintf("%f\n", u->getMax());
 
   sort(segmentsInside.rbegin(),segmentsInside.rend(),pairsCompare);
 
@@ -426,13 +442,10 @@ void SegmentBoxGenerator::scoreBox( Box &box )
         int b = u->find(q);
         if (a!=b) {
           u->join(a,b);
-          // u->join(a,b,1);
-          // mexPrintf("%d, %d, %f, %f\n",j,q,segmentsInside[i].weight,u->getMax());
         }
       }
     }
   }
-  // mexPrintf("%f\n", u->getMax());
 
   float v = u->getMax();
 
