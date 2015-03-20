@@ -90,7 +90,7 @@ if (strcmp(I,'peppers.txt') || strcmp(I,'dokimastiko.txt'))
 elseif (strcmp(I,'test\testout.txt'))
     original = imread('test\test.pgm');
 else
-    original = imread(['C:\Users\Giorgos\Programming\ObjectProposals\boxes\VOCdevkit\VOC2007\JPEGImages\' ids '.jpg']);
+    original = imread(['boxes\VOCdevkit\VOC2007\JPEGImages\' ids '.jpg']);
 end
 [height,width,color] = size(original);
 I = fscanf(fin,'%d',[width,height]); %dn kserw giati i fscanf leitourgei etsi. Mallon giati fscanf populates A in column order

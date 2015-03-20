@@ -55,51 +55,70 @@ typedef struct {
 
 class universe {
 public:
-  universe(int elements);
+  universe(int elements, vector<myBox> _segmentBoxes);
   ~universe();
   float getMax();
+  Box getBestBoundingBox();
   void updateWeights(int segId, float weight);
   void updateMax(int segId);
   int find(int x);
   void join(int x, int y);
   int computeArea(myBox boundingBox);
   myBox updateBoundingBox(myBox a, myBox b);
-  void myreset(vector<myBox> _segmentBoxes);
+  void resetSegment(int x);
+  void resetMax();
   int num_sets() const {return num; }
 
 private:
   uni_elt *elts;
   int num;
   float maximumScore;
+  vector<myBox> segmentBoxes;
+  myBox bestBoundingBox;
 };
 
-universe::universe(int elements) {
+universe::universe(int elements, vector<myBox> _segmentBoxes) {
   elts = new uni_elt[elements];
   num = elements;
+  segmentBoxes = _segmentBoxes;
 }
 
 universe::~universe() {
   delete [] elts;
 }
 
-void universe::myreset(vector<myBox> _segmentBoxes){
+void universe::resetSegment(int x){
+  elts[x].rank = 0;
+  elts[x].p = x;
+  elts[x].boundingBox = segmentBoxes[x];
+  elts[x].weight = 0;
+}
+
+void universe::resetMax(){
   maximumScore = 0;
-  for (int i=0; i<num; i++) {
-    elts[i].rank = 0;
-    elts[i].p = i;
-    elts[i].boundingBox = _segmentBoxes[i];
-    elts[i].weight = 0;
-  }
 }
 
 float universe::getMax() {
   return maximumScore;
 }
 
+Box universe::getBestBoundingBox(){
+  Box x;
+  x.c = bestBoundingBox.left;
+  x.r = bestBoundingBox.top;
+  x.w = bestBoundingBox.right - bestBoundingBox.left;
+  x.h = bestBoundingBox.bottom - bestBoundingBox.top;
+  x.s = getMax();
+  return x;
+}
+
 void universe::updateMax(int segId) {
   int area = computeArea(elts[segId].boundingBox);
   float score = area*elts[segId].weight;
-  maximumScore = max(maximumScore,score);
+  if (maximumScore<score){
+    maximumScore = score;
+    bestBoundingBox = elts[segId].boundingBox;
+  }
 }
 
 void universe::updateWeights(int segId, float weight) {
@@ -341,7 +360,7 @@ void SegmentBoxGenerator::createSegmentBoxes( arrayf &I )
       }
     }
   }
-  u = new universe(_segCnt);
+  u = new universe(_segCnt, _segmentBoxes);
 }
 
 void SegmentBoxGenerator::scoreBox( Box &box )
@@ -379,9 +398,6 @@ void SegmentBoxGenerator::scoreBox( Box &box )
   for( i=rs; i<=re; i++ ) if( (j=_vIdxs[c1][i])>=0 && sDone[j]!=sId ) {
     sIds[n]=j; sWts[n]=1; sDist[n]=0; sDone[j]=sId; sMap[j]=n++;
   }
-
-  //reset the universe
-  u->myreset(_segmentBoxes);
   
   // follow connected paths and set weights accordingly (w=0 means remove)
   vector<pairs> segmentsInside;
@@ -396,20 +412,20 @@ void SegmentBoxGenerator::scoreBox( Box &box )
       } 
       else if(_segC[q]>=c0 && _segC[q]<=c1 && _segR[q]>=r0 && _segR[q]<=r1) {
         sIds[n]=q; sDist[n]=wq; sWts[n]=0; sDone[q]=sId; sMap[q]=n++;
+        u->resetSegment(q);
       }
     }
   }
+
+  u->resetMax();
 
   for ( i=0; i<n; i++ ) {
     if (sDist[i]>0) {
       segmentsInside.push_back(pairs(sIds[i],sDist[i]));
       u->updateWeights(sIds[i],sDist[i]);
       u->updateMax(sIds[i]);
-      // u->updateMax(sIds[i], 1);
-      // mexPrintf("%d %f\n",sIds[i],sDist[i]);
     }
   }
-  // mexPrintf("%f\n", u->getMax());
 
   sort(segmentsInside.rbegin(),segmentsInside.rend(),pairsCompare);
 
