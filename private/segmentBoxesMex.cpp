@@ -89,28 +89,28 @@ void EdgeBoxGenerator::createSegments( arrayf &I, arrayf &edges )
     int c, r, j; h=I._h; w=I._w;
     vectori _R, _C;
     
-//     w=w+2;
-//     h=h+2;
-// 
-//     _segIds.init(h,w);
-//     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
-//         if( c==0 || r==0 || c==w-1 || r==h-1)
-//             _segIds.val(c,r)=-1;
-//         else {
-//             _segIds.val(c,r)=int(I.val(c-1,r-1));
-//             if (I.val(c-1,r-1) > _segCnt)
-//                 _segCnt = int(I.val(c-1,r-1));
-//         }
-//     }
-//     _segCnt++; // because we need to count the 0 id segments
-    
+    w=w+2;
+    h=h+2;
+
     _segIds.init(h,w);
-       for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
-        _segIds.val(c,r)=int(I.val(c,r));
-        if (I.val(c,r) > _segCnt)
-            _segCnt = int(I.val(c,r));
+    for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
+        if( c==0 || r==0 || c==w-1 || r==h-1)
+            _segIds.val(c,r)=-1;
+        else {
+            _segIds.val(c,r)=int(I.val(c-1,r-1));
+            if (I.val(c-1,r-1) > _segCnt)
+                _segCnt = int(I.val(c-1,r-1));
+        }
     }
     _segCnt++; // because we need to count the 0 id segments
+    
+    // _segIds.init(h,w);
+    //    for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
+    //     _segIds.val(c,r)=int(I.val(c,r));
+    //     if (I.val(c,r) > _segCnt)
+    //         _segCnt = int(I.val(c,r));
+    // }
+    // _segCnt++; // because we need to count the 0 id segments
      
     // segments affinities
     _segAff.resize(_segCnt); _segAffIdx.resize(_segCnt);
@@ -245,6 +245,7 @@ void EdgeBoxGenerator::scoreBox( Box &box )
     for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
       q=_segAffIdx[j][k];
       float wq=max(w,_segAff[j][k]); // because big segAff means big difference
+      wq=1;
       if( sDone[q]==sId ) {
         if( wq<sDist[sMap[q]] ) { sDist[sMap[q]]=wq; i=min(i,sMap[q]-1); }
       } 
