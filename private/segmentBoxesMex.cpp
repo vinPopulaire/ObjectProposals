@@ -249,13 +249,6 @@ void SegmentBoxGenerator::createSegments( arrayf &I, arrayf &edges )
             _segCnt = int(I.val(c,r));
     }
     _segCnt++; // because we need to count the 0 id segments
-
-    // for( c=0; c<w; c++ ) {
-    //   for( r=0; r<h; r++ ) {
-    //     mexPrintf("%d ",_segIds.val(c,r));
-    //   }
-    //   mexPrintf("\n");
-    // }
      
     // segments affinities
     _segAff.resize(_segCnt); _segAffIdx.resize(_segCnt);
@@ -407,6 +400,7 @@ void SegmentBoxGenerator::scoreBox( Box &box )
     for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
       q=_segAffIdx[j][k];
       float wq=max(w,_segAff[j][k]); // because big segAff means big difference
+      // wq = 1;
       if( sDone[q]==sId ) {
         if( wq<sDist[sMap[q]] ) { sDist[sMap[q]]=wq; i=min(i,sMap[q]-1); }
       } 
@@ -439,19 +433,20 @@ void SegmentBoxGenerator::scoreBox( Box &box )
         int b = u->find(q);
         if (a!=b) {
           u->join(a,b);
-          // u->join(a,b,1);
-          // mexPrintf("%d, %d, %f, %f\n",j,q,segmentsInside[i].weight,u->getMax());
         }
       }
     }
   }
   // mexPrintf("%f\n", u->getMax());
 
-  float v = u->getMax();
+  // float v = u->getMax();
 
-  v*=norm;
-  if(v<_minScore) v=0; 
-  box.s=v;
+  // v*=norm;
+  // if(v<_minScore) v=0; 
+  // box.s=v;
+
+  box = u->getBestBoundingBox();
+  box.s *= norm;
 }
 
 void SegmentBoxGenerator::refineBox( Box &box )
