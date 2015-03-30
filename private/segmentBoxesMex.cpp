@@ -127,7 +127,7 @@ Box universe::getBestBoundingBox(){
 
 void universe::updateMax(int segId) {
   float score = elts[segId].weight*elts[segId].magnitude;
-  if (maximumScore<score){
+  if (maximumScore<=score){
     maximumScore = score;
     bestBoundingBox = elts[segId].boundingBox;
   }
@@ -197,7 +197,7 @@ private:
   int _segCnt;                      // total segment count
   arrayi _segIds;                   // segment ids (-1/0 means no segment)
   vectorf _segMag;                  // segment edge magnitude sums
-  arrayf E1;
+  arrayf _segIImg;
   vector<vectorf> _segAff;          // segment affinities
   vector<vectori> _segAffIdx;       // segment neighbors
   vector<myBox> _segmentBoxes;
@@ -281,8 +281,8 @@ void SegmentBoxGenerator::createSegments( arrayf &I, arrayf &edges )
     _segMag.resize(_segCnt,0); 
     
     for( c=0; c<w; c++ ) for( r=0; r<h; r++ ){
-            if((j=_segIds.val(c,r))>-1)
-                _segMag[j]++;
+      if((j=_segIds.val(c,r))>-1)
+         _segMag[j]++;
     }
 
     // compute _segC and _segR
@@ -297,6 +297,7 @@ void SegmentBoxGenerator::createSegments( arrayf &I, arrayf &edges )
 void SegmentBoxGenerator::prepDataStructs( arrayf &I )
 {
   int c, r, i;
+  arrayf E1;
 
   // initialize step sizes
   _scStep=sqrt(1/_alpha);
@@ -330,6 +331,20 @@ void SegmentBoxGenerator::prepDataStructs( arrayf &I )
     }
   }
 
+   // create _segIImg
+  E1.init(h,w);
+  for( i=0; i<_segCnt; i++ ) if( _segMag[i]>0 ) {
+    E1.val(_segC[i],_segR[i]) = float(_segMag[i]);
+  }
+
+  _segIImg.init(h+1,w+1);
+  for( c=1; c<w; c++ ) {
+    for( r=1; r<h; r++ ) {
+      _segIImg.val(c+1,r+1) = E1.val(c,r) + _segIImg.val(c,r+1) +
+      _segIImg.val(c+1,r) - _segIImg.val(c,r);
+    }
+  }
+
   // initialize scoreBox() data structures
   int n=_segCnt+1; 
   _sWts.init(n,1); _sDist.init(n,1);
@@ -354,9 +369,9 @@ void SegmentBoxGenerator::createSegmentBoxes( arrayf &I )
     if ((j=_segIds.val(c,r))>=0){  
       if (alreadyDone[j]==0){
         _segmentBoxes[j].top = r;
-        _segmentBoxes[j].bottom = r+1;
+        _segmentBoxes[j].bottom = r;
         _segmentBoxes[j].left = c;
-        _segmentBoxes[j].right = c+1;
+        _segmentBoxes[j].right = c;
         alreadyDone[j] = 1;
       }
       else {
@@ -364,13 +379,13 @@ void SegmentBoxGenerator::createSegmentBoxes( arrayf &I )
           _segmentBoxes[j].left = c;
         }
         if ( c > _segmentBoxes[j].right ) {
-          _segmentBoxes[j].right = c+1;
+          _segmentBoxes[j].right = c;
         }
         if ( r < _segmentBoxes[j].top ) {
           _segmentBoxes[j].top = r;
         }
         if ( r > _segmentBoxes[j].bottom ) {
-          _segmentBoxes[j].bottom = r+1;
+          _segmentBoxes[j].bottom = r;
         }
       }
     }
@@ -393,6 +408,9 @@ void SegmentBoxGenerator::scoreBox( Box &box )
   // bw/=2;bh/=2; 
   
   float norm = pow(1.f/(bw*bh),_kappa);
+
+  // float v = _segIImg.val(c0,r0) + _segIImg.val(c1+1,r1+1)
+  //   - _segIImg.val(c1+1,r0) - _segIImg.val(c0,r1+1);
   
   // find interesecting segments along four boundaries
   
@@ -415,7 +433,6 @@ void SegmentBoxGenerator::scoreBox( Box &box )
   }
   
   // follow connected paths and set weights accordingly (w=0 means remove)
-  vector<pairs> segmentsInside;
 
   for( i=0; i<n; i++ ) {
     float w=sDist[i]; j=sIds[i];
@@ -432,6 +449,8 @@ void SegmentBoxGenerator::scoreBox( Box &box )
       }
     }
   }
+
+  vector<pairs> segmentsInside;
 
   u->resetMax();
 
@@ -460,6 +479,13 @@ void SegmentBoxGenerator::scoreBox( Box &box )
     }
   }
   // mexPrintf("%f\n", u->getMax());
+
+  // for( i=0; i<n; i++ ) {
+  //   k = sIds[i];
+  //   if( _segC[k]>=c0 && _segC[k]<=c1 && _segR[k]>=r0 && _segR[k]<=r1 ){
+  //     v -= sWts[i]*_segMag[k];
+  //   }
+  // }
 
   // float v = u->getMax();
 
@@ -516,23 +542,16 @@ void SegmentBoxGenerator::scoreAllBoxes( Boxes &boxes )
     }
   }
 
-  // boxes.resize(0);
-  // Box b; 
-  // b.r=135; b.c=746; b.h = 127; b.w= 151;
-  // boxes.push_back(b);
-  // b.r=235; b.c=652; b.h = 110; b.w= 120;
-  // boxes.push_back(b);
-
   // score all boxes, refine top candidates, perform nms
   int i, k=0, m = int(boxes.size());
   for( i=0; i<m; i++ ) {
     scoreBox(boxes[i]);
-    // mexPrintf("\nnew one\n");
     if( !boxes[i].s ) continue; k++;
-    refineBox(boxes[i]);
+    // refineBox(boxes[i]);
   }
   sort(boxes.rbegin(),boxes.rend(),boxesCompare);
-  boxes.resize(k); boxesNms(boxes,_beta,_maxBoxes);
+  boxes.resize(k); 
+  boxesNms(boxes,_beta,_maxBoxes);
 }
 
 float boxesOverlap( Box &a, Box &b ) {

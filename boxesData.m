@@ -44,10 +44,9 @@ o=getPrmDflt(varargin,dfs,1);
 
 % locations of PASCAL VOC dataset
 if(~exist(o.dataDir,'dir')), error('dataset not found, see help'); end
-imDir=[o.dataDir 'Segments/Segments/'];
+imDir=[o.dataDir 'VOC2007/JPEGImages/'];
 gtDir=[o.dataDir 'VOC2007/Annotations/'];
-edgeDir=[o.dataDir 'Edges/Edges/'];
-imList=[o.dataDir 'Segments/' o.split '.txt'];
+imList=[o.dataDir 'VOC2007/ImageSets/Main/' o.split '.txt'];
 addpath(genpath([o.dataDir 'VOCcode']));
 
 % check if data already exists, if yes load and return
@@ -59,17 +58,15 @@ if(~exist(imList,'file')), error('ids file not found'); end
 f=fopen(imList); ids=textscan(f,'%s %*s'); ids=ids{1}; fclose(f);
 
 % generate list of image and gt filenames then load gt
-n=length(ids); imgs=cell(n,1); gt=cell(n,1); edges=cell(n,1);
-for i=1:n, imgs{i}=[imDir ids{i} '.txt']; end
-for i=1:n, edges{i}=[edgeDir ids{i} '.txt']; end
+n=length(ids); imgs=cell(n,1); gt=cell(n,1);
+for i=1:n, imgs{i}=[imDir ids{i} '.jpg']; end
 for i=1:n, gt{i}=[gtDir ids{i} '.xml']; end
 if(~exist(imgs{1},'file')), error('images not found'); end
-if(~exist(edges{1},'file')), error('edges not found'); end
 if(~exist(gt{1},'file')), error('annotations not found'); end
 for i=1:n, [~,gt{i}]=bbGt('bbLoad',gt{i},'format',1); end
 
 % create output structure and cache to disk
-data=struct('split',o.split,'n',n,'ids',{ids},'imgs',{imgs},'gt',{gt},'edges',{edges});
+data=struct('split',o.split,'n',n,'ids',{ids},'imgs',{imgs},'gt',{gt});
 if(~exist(o.resDir,'dir')), mkdir(resDir); end; save(dataNm,'data');
 
 end
