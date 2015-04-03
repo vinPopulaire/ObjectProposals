@@ -1,4 +1,4 @@
-function bbs = segmentBoxes( I, varargin )
+function bbs = segmentBoxes( I, model, varargin )
 % Generate Edge Boxes object proposals in given image(s).
 %
 % Compute Edge Boxes object proposals as described in:
@@ -71,11 +71,11 @@ o=getPrmDflt(varargin,dfs,1); if(nargin==0), bbs=o; return; end
 % run detector possibly over multiple images and optionally save results
 f=o.name; if(~isempty(f) && exist(f,'file')), bbs=1; return; end
 if(~iscell(I)), 
-    bbs=segmentBoxesImg(I,o); 
+    bbs=segmentBoxesImg(I,model,o); 
 else n=length(I);
   bbs=cell(n,1); 
   parfor i=1:n, 
-      bbs{i}=segmentBoxesImg(I{i},o); 
+      bbs{i}=segmentBoxesImg(I{i},model,o); 
   end; 
 end
 d=fileparts(f); if(~isempty(d)&&~exist(d,'dir')), mkdir(d); end
@@ -83,15 +83,18 @@ if(~isempty(f)), save(f,'bbs'); bbs=1; end
 
 end
 
-function bbs = segmentBoxesImg( I, o )
+function bbs = segmentBoxesImg( I, model, o )
 if (all(ischar(I))), I=imread(I); end
+model.opts.nms=0; [E,O]=edgesDetect(I,model);
+E=edgesNmsMex(E,O,2,0,1,model.opts.nThreads);
 
-[labels,edges] = graphseg(I, 185, 20, 0.5);
+[labels,edges] = graphseg(I, 150, 50, 0.5);
 labels = single(labels);
 edges = single(edges);
+% idisp(labels);
 
 % Generate Segment Boxes object proposals in single image.
-bbs=segmentBoxesMex(labels,edges,o.alpha,o.beta,o.minScore,o.maxBoxes,...
+bbs=segmentBoxesMex(labels,edges,E,o.alpha,o.beta,o.minScore,o.maxBoxes,...
   o.segmentMinMag,o.segmentMergeThr,o.clusterMinMag,...
   o.maxAspectRatio,o.minBoxArea,o.gamma,o.kappa);
 

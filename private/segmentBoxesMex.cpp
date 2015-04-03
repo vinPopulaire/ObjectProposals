@@ -189,7 +189,7 @@ public:
   float _maxAspectRatio, _minBoxArea, _gamma, _kappa;
 
   // main external routine (set parameters first)
-  void generate( Boxes &boxes, arrayf &I, arrayf &edges );
+  void generate( Boxes &boxes, arrayf &I, arrayf &edges, arrayf &E );
 
 private:
   // edge segment information (see clusterEdges)
@@ -218,21 +218,21 @@ private:
   void scoreAllBoxes( Boxes &boxes );
   void scoreBox( Box &box );
   void refineBox( Box &box );
-  void createSegments( arrayf &I, arrayf &edges );
+  void createSegments( arrayf &I, arrayf &edges, arrayf &E );
   void createSegmentBoxes( arrayf &I );
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SegmentBoxGenerator::generate( Boxes &boxes, arrayf &I, arrayf &edges )
+void SegmentBoxGenerator::generate( Boxes &boxes, arrayf &I, arrayf &edges, arrayf &E )
 {
-  createSegments(I,edges);
+  createSegments(I,edges,E);
   createSegmentBoxes(I);
   prepDataStructs(I); 
   scoreAllBoxes(boxes);
 }
 
-void SegmentBoxGenerator::createSegments( arrayf &I, arrayf &edges )
+void SegmentBoxGenerator::createSegments( arrayf &I, arrayf &edges, arrayf &E )
 {
     int c, r, j; h=I._h; w=I._w;
     vectori _R, _C;
@@ -273,9 +273,47 @@ void SegmentBoxGenerator::createSegments( arrayf &I, arrayf &edges )
       int a = (int)edges.val(0,i);
       int b = (int)edges.val(1,i);
       float w = (edges.val(2,i))*normalize; //kanonikopoiisi sto 1 
-      _segAff[a].push_back(w); _segAffIdx[a].push_back(b);
-      _segAff[b].push_back(w); _segAffIdx[b].push_back(a);
+      // _segAff[a].push_back(w); 
+      _segAffIdx[a].push_back(b);
+      // _segAff[b].push_back(w);
+      _segAffIdx[b].push_back(a);
     }
+
+    std::vector<std::vector<float>> aff(_segCnt,std::vector<float>(_segCnt));
+
+    for( c=0; c<w; c++ ) for( r=0; r<h; r++ ) {
+      if( c>1 && r>1 && c<w-2 && r<h-2){
+        if (E.val(c,r)>0) {
+          float weight = E.val(c,r);
+          aff[_segIds.val(c-1,r)][_segIds.val(c+1,r)] = max(aff[_segIds.val(c-1,r)][_segIds.val(c+1,r)],weight);
+          aff[_segIds.val(c+1,r)][_segIds.val(c-1,r)] = max(aff[_segIds.val(c+1,r)][_segIds.val(c-1,r)],weight);
+
+          aff[_segIds.val(c-1,r-1)][_segIds.val(c+1,r+1)] = max(aff[_segIds.val(c-1,r-1)][_segIds.val(c+1,r+1)],weight);;
+          aff[_segIds.val(c+1,r+1)][_segIds.val(c-1,r-1)] = max(aff[_segIds.val(c+1,r+1)][_segIds.val(c-1,r-1)],weight);;
+
+          aff[_segIds.val(c-1,r+1)][_segIds.val(c+1,r-1)] = max(aff[_segIds.val(c-1,r+1)][_segIds.val(c+1,r-1)],weight);;
+          aff[_segIds.val(c+1,r-1)][_segIds.val(c-1,r+1)] = max(aff[_segIds.val(c+1,r-1)][_segIds.val(c-1,r+1)],weight);;
+
+          aff[_segIds.val(c,r+1)][_segIds.val(c,r-1)] = max(aff[_segIds.val(c,r+1)][_segIds.val(c,r-1)],weight);;
+          aff[_segIds.val(c,r-1)][_segIds.val(c,r+1)] = max(aff[_segIds.val(c,r-1)][_segIds.val(c,r+1)],weight);;
+        }
+      }
+    }
+
+    for ( int i=0; i<_segAffIdx.size(); i++){
+      for ( int j=0; j<_segAffIdx[i].size(); j++){
+        int q = _segAffIdx[i][j];
+        _segAff[i].push_back(aff[i][q]);
+      }
+    }
+
+    // for ( int i=0; i<_segAffIdx.size(); i++){
+    //   for ( int j=0; j<_segAffIdx[i].size(); j++){
+    //     int q = _segAffIdx[i][j];
+    //     mexPrintf("%d %d %f\n",i,q, _segAff[i][j]);
+    //     // mexPrintf("%d %d %f\n",i,q,_segAff[i][q]);
+    //   }
+    // }
 
     // compute _segMag
     _segMag.resize(_segCnt,0); 
@@ -438,8 +476,8 @@ void SegmentBoxGenerator::scoreBox( Box &box )
     float w=sDist[i]; j=sIds[i];
     for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
       q=_segAffIdx[j][k];
-      float wq=max(w,_segAff[j][k]); // because big segAff means big difference
-      wq = 1;
+      float wq=max(w,1-_segAff[j][k]); // because big segAff means big difference
+      // wq = 1;
       if( sDone[q]==sId ) {
         if( wq<sDist[sMap[q]] ) { sDist[sMap[q]]=wq; i=min(i,sMap[q]-1); }
       } 
@@ -593,7 +631,7 @@ void boxesNms( Boxes &boxes, float thr, int maxBoxes )
 void mexFunction( int nl, mxArray *pl[], int nr, const mxArray *pr[] )
 {
   // check and get inputs
-  if(nr != 13) mexErrMsgTxt("Thirteen inputs required.");
+  if(nr != 14) mexErrMsgTxt("Thirteen inputs required.");
   if(nl > 2) mexErrMsgTxt("At most two outputs expected.");
   if(mxGetClassID(pr[0])!=mxSINGLE_CLASS) mexErrMsgTxt("I must be a float*");
   arrayf I; I._x = (float*) mxGetData(pr[0]);
@@ -603,22 +641,25 @@ void mexFunction( int nl, mxArray *pl[], int nr, const mxArray *pr[] )
   edges._h = (int) mxGetM(pr[1]);
   edges._w = (int) mxGetN(pr[1]);
 
+if(mxGetClassID(pr[2])!=mxSINGLE_CLASS) mexErrMsgTxt("E must be a float*");
+  arrayf E; E._x = (float*) mxGetData(pr[2]);
+
   // setup and run SegmentBoxGenerator
   SegmentBoxGenerator segmentBoxGen; Boxes boxes;
   
-  segmentBoxGen._alpha = float(mxGetScalar(pr[2]));
-  segmentBoxGen._beta = float(mxGetScalar(pr[3]));
-  segmentBoxGen._minScore = float(mxGetScalar(pr[4]));
-  segmentBoxGen._maxBoxes = int(mxGetScalar(pr[5]));
-  segmentBoxGen._edgeMinMag = float(mxGetScalar(pr[6]));
-  segmentBoxGen._edgeMergeThr = float(mxGetScalar(pr[7]));
-  segmentBoxGen._clusterMinMag = float(mxGetScalar(pr[8]));
-  segmentBoxGen._maxAspectRatio = float(mxGetScalar(pr[9]));
-  segmentBoxGen._minBoxArea = float(mxGetScalar(pr[10]));
-  segmentBoxGen._gamma = float(mxGetScalar(pr[11]));
-  segmentBoxGen._kappa = float(mxGetScalar(pr[12]));
+  segmentBoxGen._alpha = float(mxGetScalar(pr[3]));
+  segmentBoxGen._beta = float(mxGetScalar(pr[4]));
+  segmentBoxGen._minScore = float(mxGetScalar(pr[5]));
+  segmentBoxGen._maxBoxes = int(mxGetScalar(pr[6]));
+  segmentBoxGen._edgeMinMag = float(mxGetScalar(pr[7]));
+  segmentBoxGen._edgeMergeThr = float(mxGetScalar(pr[8]));
+  segmentBoxGen._clusterMinMag = float(mxGetScalar(pr[9]));
+  segmentBoxGen._maxAspectRatio = float(mxGetScalar(pr[10]));
+  segmentBoxGen._minBoxArea = float(mxGetScalar(pr[11]));
+  segmentBoxGen._gamma = float(mxGetScalar(pr[12]));
+  segmentBoxGen._kappa = float(mxGetScalar(pr[13]));
    
-  segmentBoxGen.generate( boxes, I, edges );
+  segmentBoxGen.generate( boxes, I, edges, E );
 
   // create output bbs and output to Matlab
   int n = (int) boxes.size();
