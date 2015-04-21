@@ -110,8 +110,8 @@ Box universe::getBestBoundingBox(){
   Box x;
   x.c = bestBoundingBox.left;
   x.r = bestBoundingBox.top;
-  x.w = bestBoundingBox.right - bestBoundingBox.left;
-  x.h = bestBoundingBox.bottom - bestBoundingBox.top;
+  x.w = bestBoundingBox.right - bestBoundingBox.left + 1;
+  x.h = bestBoundingBox.bottom - bestBoundingBox.top + 1;
   x.s = getMax();
   return x;
 }
@@ -138,7 +138,7 @@ void universe::updateWeights(int segId, float weight) {
 }
 
 int universe::computeArea(myBox box) {
-  return ((box.bottom - box.top) * (box.right - box.left));
+  return ((box.bottom - box.top + 1) * (box.right - box.left + 1));
 }
 
 myBox universe::updateBoundingBox(myBox a, myBox b) {
@@ -411,7 +411,7 @@ void SegmentBoxGenerator::scoreBox( Box &box )
 
   // float v = _segIImg.val(c0,r0) + _segIImg.val(c1+1,r1+1)
   //   - _segIImg.val(c1+1,r0) - _segIImg.val(c0,r1+1);
-  
+
   // find interesecting segments along four boundaries
   
   int cs, ce, rs, re, n=0;
