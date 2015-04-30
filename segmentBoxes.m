@@ -85,16 +85,25 @@ end
 
 function bbs = segmentBoxesImg( I, model, o )
 if (all(ischar(I))), I=imread(I); end
-model.opts.nms=0; [E,O]=edgesDetect(I,model);
-E=edgesNmsMex(E,O,2,0,1,model.opts.nThreads);
 
-[labels,edges] = graphseg(I, 150, 50, 0.5);
-labels = single(labels);
-edges = single(edges);
-% idisp(labels);
+opts = spDetect;
+opts.nThreads = 4;  % number of computation threads
+opts.k = 512;       % controls scale of superpixels (big k -> big sp)
+opts.alpha = .5;    % relative importance of regularity versus data terms
+opts.beta = .9;     % relative importance of edge versus color terms
+opts.merge = 0;     % set to small value to merge nearby superpixels at end
+
+[E,~,~,segs]=edgesDetect(I,model);
+[S,~] = spDetect(I,E,opts);
+
+[A,~,U]=spAffinities(S,E,segs,opts.nThreads);
+
+% figure(1), im(1-U);
+
+S = single(S);
 
 % Generate Segment Boxes object proposals in single image.
-bbs=segmentBoxesMex(labels,edges,E,o.alpha,o.beta,o.minScore,o.maxBoxes,...
+bbs=segmentBoxesMex(S,A,o.alpha,o.beta,o.minScore,o.maxBoxes,...
   o.segmentMinMag,o.segmentMergeThr,o.clusterMinMag,...
   o.maxAspectRatio,o.minBoxArea,o.gamma,o.kappa);
 

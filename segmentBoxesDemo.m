@@ -54,13 +54,12 @@ opts.maxBoxes = 1e4;  % max number of boxes to detect
 imgdir = '..\ObjectProposals\boxes\VOCdevkit\VOC2007\JPEGImages\';
 
 %% to change
-testImage = '000003';
-% figure(1);
+testImage = '000027';
 I = imread([imgdir '' testImage '.jpg']);
 
 tic, bbs=segmentBoxes(I,model,opts); toc;
 
-f = figure(2);
+f = figure(1);
 
 split='val'; data=boxesData('split',split);
 gt = data.gt;
@@ -68,10 +67,10 @@ n = data.n;
 gt = gt(1:n);
 
 %%% to change
-gt = cell2mat(gt(3));
+gt = cell2mat(gt(15));
 
 gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
-subplot(1,3,1);
+subplot(1,2,1);
 bbGt('showRes',I,gtRes,dtRes(dtRes(:,6)==1,:));
 title(['green=matched gt' char(10) 'red=missed gt' char(10) 'dashed-green=matched detect']);
 
@@ -79,7 +78,7 @@ title(['green=matched gt' char(10) 'red=missed gt' char(10) 'dashed-green=matche
 gt = bbs(1:8,1:4);
 
 gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
-subplot(1,3,2);
+subplot(1,2,2);
 bbGt('showRes',I,gtRes,dtRes(dtRes(:,6)==1,:));
 title('8 top scoring boxes');
 
