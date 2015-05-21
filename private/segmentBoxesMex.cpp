@@ -439,7 +439,7 @@ void SegmentBoxGenerator::scoreBox( Box &box )
     for( k=0; k<int(_segAffIdx[j].size()); k++ ) {
       q=_segAffIdx[j][k];
       float wq=max(w,_segAff[j][k]); // because big segAff means big difference
-      wq = 1;
+      // wq = 1;
       if( sDone[q]==sId ) {
         if( wq<sDist[sMap[q]] ) { sDist[sMap[q]]=wq; i=min(i,sMap[q]-1); }
       } 
@@ -454,11 +454,15 @@ void SegmentBoxGenerator::scoreBox( Box &box )
 
   u->resetMax();
 
+  float myscore = 0;
+
   for ( i=0; i<n; i++ ) {
     if (sDist[i]>0) {
       segmentsInside.push_back(pairs(sIds[i],sDist[i]));
-      u->updateWeights(sIds[i],sDist[i]);
+      u->updateWeights(sIds[i],1);
       u->updateMax(sIds[i]);
+
+      myscore = myscore + (_segMag[sIds[i]]*sDist[i]);
     }
   }
 
@@ -493,8 +497,9 @@ void SegmentBoxGenerator::scoreBox( Box &box )
   // if(v<_minScore) v=0; 
   // box.s=v;
 
-  box = u->getBestBoundingBox();
-  box.s *= norm;
+  // box = u->getBestBoundingBox();
+  box.s = myscore*norm;
+  // box.s *= norm;
 }
 
 void SegmentBoxGenerator::refineBox( Box &box )
@@ -547,7 +552,7 @@ void SegmentBoxGenerator::scoreAllBoxes( Boxes &boxes )
   for( i=0; i<m; i++ ) {
     scoreBox(boxes[i]);
     if( !boxes[i].s ) continue; k++;
-    // refineBox(boxes[i]);
+    refineBox(boxes[i]);
   }
   sort(boxes.rbegin(),boxes.rend(),boxesCompare);
   boxes.resize(k); 
