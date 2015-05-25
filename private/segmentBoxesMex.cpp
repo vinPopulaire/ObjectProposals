@@ -457,11 +457,15 @@ void SegmentBoxGenerator::scoreBox( Box &box )
 
   u->resetMax();
 
+  float myscore = 0;
+
   for ( i=0; i<n; i++ ) {
     if (sDist[i]>0) {
       segmentsInside.push_back(pairs(sIds[i],sDist[i]));
-      u->updateWeights(sIds[i],sDist[i]);
+      u->updateWeights(sIds[i],1);
       u->updateMax(sIds[i]);
+
+      myscore = myscore + (_segMag[sIds[i]]*sDist[i]);
     }
   }
 
@@ -497,7 +501,8 @@ void SegmentBoxGenerator::scoreBox( Box &box )
   // box.s=v;
 
   box = u->getBestBoundingBox();
-  box.s *= norm;
+  // box.s *= norm;
+  box.s = myscore*norm;
 }
 
 void SegmentBoxGenerator::refineBox( Box &box )

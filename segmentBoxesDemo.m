@@ -46,7 +46,7 @@ opts.maxBoxes = 1e4;  % max number of boxes to detect
 % if(~exist('boxes/VOCdevkit/','dir')), return; end
 % split='val'; data=boxesData('split',split);
 % nm='segmentBoxes70'; opts.name=['boxes/' nm '-' split '.mat'];
-% segmentBoxes(data.imgs,opts); opts.name=[];
+% segmentBoxes(data.imgs,model,opts); opts.name=[];
 % boxesEval('data',data,'names',nm,'thrs',.7,'show',2);
 % boxesEval('data',data,'names',nm,'thrs',.5:.05:1,'cnts',1000,'show',3);
 
@@ -54,7 +54,7 @@ opts.maxBoxes = 1e4;  % max number of boxes to detect
 imgdir = '..\ObjectProposals\boxes\VOCdevkit\VOC2007\JPEGImages\';
 
 %% to change
-testImage = '000027';
+testImage = '000053';
 I = imread([imgdir '' testImage '.jpg']);
 
 tic, bbs=segmentBoxes(I,model,opts); toc;
@@ -67,7 +67,7 @@ n = data.n;
 gt = gt(1:n);
 
 %%% to change
-gt = cell2mat(gt(15));
+gt = cell2mat(gt(25));
 
 gt(:,5)=0; [gtRes,dtRes]=bbGt('evalRes',gt,double(bbs),.7);
 subplot(1,2,1);
