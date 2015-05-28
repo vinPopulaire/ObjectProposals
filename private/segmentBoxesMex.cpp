@@ -116,14 +116,14 @@ Box universe::getBestBoundingBox(){
   return x;
 }
 
-// void universe::updateMax(int segId) {
-//   int area = computeArea(elts[segId].boundingBox);
-//   float score = area*elts[segId].weight;
-//   if (maximumScore<score){
-//     maximumScore = score;
-//     bestBoundingBox = elts[segId].boundingBox;
-//   }
-// }
+ // void universe::updateMax(int segId) {
+ //   int area = computeArea(elts[segId].boundingBox);
+ //   float score = area*elts[segId].weight;
+ //   if (maximumScore<score){
+ //     maximumScore = score;
+ //     bestBoundingBox = elts[segId].boundingBox;
+ //   }
+ // }
 
 void universe::updateMax(int segId) {
   float score = elts[segId].weight*elts[segId].magnitude;
@@ -487,14 +487,14 @@ void SegmentBoxGenerator::scoreBox( Box &box )
   //   }
   // }
 
-  // float v = u->getMax();
+  float v = u->getMax();
 
-  // v*=norm;
-  // if(v<_minScore) v=0; 
-  // box.s=v;
+  v*=norm;
+  if(v<_minScore) v=0; 
+  box.s=v;
 
-  box = u->getBestBoundingBox();
-  box.s *= norm;
+   // box = u->getBestBoundingBox();
+   // box.s *= norm;
 }
 
 void SegmentBoxGenerator::refineBox( Box &box )
@@ -547,7 +547,7 @@ void SegmentBoxGenerator::scoreAllBoxes( Boxes &boxes )
   for( i=0; i<m; i++ ) {
     scoreBox(boxes[i]);
     if( !boxes[i].s ) continue; k++;
-    // refineBox(boxes[i]);
+    refineBox(boxes[i]);
   }
   sort(boxes.rbegin(),boxes.rend(),boxesCompare);
   boxes.resize(k); 
